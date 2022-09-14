@@ -55,7 +55,7 @@ fullColor comfort = {0, 0, 0};
 fullColor warm = {240, 230, 140};
 
 // 暑いときの画面背景色
-fullColor hot = {255,165, 0};
+fullColor hot = {255, 165, 0};
 
 // 暑くてたまらないときの画面背景色
 fullColor boiling {255, 127, 80};
@@ -69,7 +69,7 @@ unsigned char backlightCnt = 2;
 bool bedroomModeFlg = false;
 
 //温度、相対湿度から絶対湿度を計算する関数
-uint32_t getAbsoluteHumidity(float temperature, float humidity) { 
+uint32_t getAbsoluteHumidity(float temperature, float humidity) {
   // approximation formula from Sensirion SGP30 Driver Integration chapter 3.15
   const float absoluteHumidity = 216.7f
                                  * ((humidity / 100.0f) * 6.112f
@@ -82,7 +82,7 @@ uint32_t getAbsoluteHumidity(float temperature, float humidity) {
 
 // LEDの色と輝度を操作する関数
 void setLedColor(int r, int g, int b, int brightness) {
-  for (int i = 0; i < NUMPIXELS; i++){
+  for (int i = 0; i < NUMPIXELS; i++) {
     pixels.setPixelColor(i, pixels.Color(r, g, b));
     pixels.setBrightness(brightness);
     pixels.show();
@@ -90,8 +90,8 @@ void setLedColor(int r, int g, int b, int brightness) {
 }
 
 // 24bit color を 16bit color に変換する関数
-uint16_t getColor(uint8_t red, uint8_t green, uint8_t blue){
-  return ((red>>3)<<11) | ((green>>2)<<5) | (blue>>3);
+uint16_t getColor(uint8_t red, uint8_t green, uint8_t blue) {
+  return ((red >> 3) << 11) | ((green >> 2) << 5) | (blue >> 3);
 }
 
 // Sprite クラスのインスタンス化
@@ -100,65 +100,65 @@ TFT_eSprite sprite = TFT_eSprite(&M5.Lcd);
 // 各数値を計測する関数
 void mesureSensorValues() {
   //気圧を測定 (hPa に変換)
-  pressure = bme.readPressure() / 100; 
+  pressure = bme.readPressure() / 100;
   //sht30 (温湿度センサー) にて、温湿度を測定
-  if(sht30.get()==0){
+  if (sht30.get() == 0) {
     tmp = sht30.cTemp;
     hum = sht30.humidity;
   }
   //絶対湿度をSGP30にセット
   sgp.setHumidity(getAbsoluteHumidity(tmp, hum));
   //eCO2 TVOC読込に失敗したときのエラー表示
-  if (! sgp.IAQmeasure()) { 
+  if (! sgp.IAQmeasure()) {
     Serial.println("Measurement failed");
-    while(1);
+    while (1);
   }
   // 不快指数の計算
   discomfortIndex = ((0.81 * tmp) + ((0.01 * hum) * ((0.99 * tmp) - 14.3)) + 46.3);
 }
 
 // 画面表示する関数
-void updateScreen(){
+void updateScreen() {
   // Bボタンが押されたとき、色を黒にする
   if (bedroomModeFlg) {
     sprite.fillScreen(TFT_BLACK);
     discomfortStatus = "comfort";
-  }else{
+  } else {
     // 不快指数の画面表示
     if (discomfortIndex < 55 && discomfortStatus != "cold") {
-       discomfortStatus = "cold";
-       setSpriteBackColor(cold);
-    }else if (discomfortIndex < 60 && discomfortIndex >= 55 && discomfortStatus != "chilly") {
-       discomfortStatus = "chilly";
-       setSpriteBackColor(chilly);
-    }else if (discomfortIndex < 75 && discomfortIndex >= 60 && discomfortStatus != "comfort") {
-       discomfortStatus = "comfort";
-       setSpriteBackColor(comfort);
-    }else if (discomfortIndex < 80 && discomfortIndex >= 75 && discomfortStatus != "warm") {
-       discomfortStatus = "warm";
-       setSpriteBackColor(warm);
-    }else if (discomfortIndex < 85 && discomfortIndex >= 80 && discomfortStatus != "hot") {
-       discomfortStatus = "hot";
-       setSpriteBackColor(hot);
-    }else if (discomfortIndex >= 85 && discomfortStatus != "boiling") {
-       discomfortStatus = "boiling";
-       setSpriteBackColor(boiling);
+      discomfortStatus = "cold";
+      setSpriteBackColor(cold);
+    } else if (discomfortIndex < 60 && discomfortIndex >= 55 && discomfortStatus != "chilly") {
+      discomfortStatus = "chilly";
+      setSpriteBackColor(chilly);
+    } else if (discomfortIndex < 75 && discomfortIndex >= 60 && discomfortStatus != "comfort") {
+      discomfortStatus = "comfort";
+      setSpriteBackColor(comfort);
+    } else if (discomfortIndex < 80 && discomfortIndex >= 75 && discomfortStatus != "warm") {
+      discomfortStatus = "warm";
+      setSpriteBackColor(warm);
+    } else if (discomfortIndex < 85 && discomfortIndex >= 80 && discomfortStatus != "hot") {
+      discomfortStatus = "hot";
+      setSpriteBackColor(hot);
+    } else if (discomfortIndex >= 85 && discomfortStatus != "boiling") {
+      discomfortStatus = "boiling";
+      setSpriteBackColor(boiling);
     }
   }
-  
+
   // 計測結果をスプライトに入力
   setSpriteMeasurement(sgp.TVOC, sgp.eCO2, pressure, tmp, hum);
-  
+
   // スプライトを画面に表示
   sprite.pushSprite(0, 0);
-  
+
   // eCO2とTVOCの値をシリアルモニタに通信する
   Serial.print("eCO2 "); Serial.print(sgp.eCO2); Serial.print("\t");
   Serial.print("TVOC "); Serial.print(sgp.TVOC); Serial.print("\n");
 
   if (bedroomModeFlg) {
     M5.Lcd.setBrightness(5);
-  }else{
+  } else {
     //backlightCntに応じて画面輝度を調節する
     M5.Lcd.setBrightness((50 * backlightCnt) + 5);
   }
@@ -167,10 +167,15 @@ void updateScreen(){
 // バックライトの明度を操作する関数
 void adjustBacklight(int i) {
   backlightCnt += i;
+  if (backlightCnt > 5) {
+    backlightCnt = 5;
+  } else if (backlightCnt < 0) {
+    backlichtCnt = 0;
+  }
 }
 
 // 計測結果をスプライトに入力する関数
-void setSpriteMeasurement(int tvoc, int eco2, float pressure, float tmp, float hum){
+void setSpriteMeasurement(int tvoc, int eco2, float pressure, float tmp, float hum) {
   sprite.setCursor(0, 40);
   sprite.printf("TVOC: %4d ppb ", tvoc);
   sprite.setCursor(0, 80);
@@ -182,25 +187,25 @@ void setSpriteMeasurement(int tvoc, int eco2, float pressure, float tmp, float h
 }
 
 // 構造体を参照して背景色をスプライトに入力する関数
-void setSpriteBackColor(struct fullColor structure){
+void setSpriteBackColor(struct fullColor structure) {
   sprite.fillScreen(getColor(structure.r, structure.g, structure.b));
 }
 
 // LEDを点灯する関数
-void updateLedBar(){
+void updateLedBar() {
   // LEDの点灯処理
   if (bedroomModeFlg) {
     // フラグが立っているときのLED消灯処理
     setLedColor(0, 0, 0, 0);
-  }else{
+  } else {
     // 警告
     if (sgp.eCO2 > cautionPoint) {
       setLedColor(caution.r, caution.g, caution.b, 50);
-    // 注意
-    }else if(sgp.eCO2 > attentionPoint) {
+      // 注意
+    } else if (sgp.eCO2 > attentionPoint) {
       setLedColor(attention.r, attention.g, attention.b, 25);
-    // 閾値以下のときのLED消灯処理
-    }else{
+      // 閾値以下のときのLED消灯処理
+    } else {
       setLedColor(0, 0, 0, 0);
     }
   }
@@ -213,9 +218,9 @@ void setup() {
 
   //シリアル通信初期化
   Serial.begin(9600);
-  
+
   // SGP30 が初期化できなかったとき、エラーを返す
-  if (! sgp.begin()){
+  if (! sgp.begin()) {
     Serial.println("Sensor not found :(");
     while (1);
   }
@@ -235,7 +240,7 @@ void setup() {
   M5.Lcd.setTextDatum(TL_DATUM);
   M5.Lcd.setCursor(20, 40);
   // SGP30が動作するまで15秒起動中の表示を出す
-  for(int i = 0; i < 15; i++){
+  for (int i = 0; i < 15; i++) {
     M5.Lcd.printf(".");
     delay(1000);
   }
@@ -259,7 +264,7 @@ void loop() {
 
   // 画面表示
   updateScreen();
-  
+
   // ボタンで画面輝度調節
   if (M5.BtnA.wasPressed()) {
     adjustBacklight(1);
@@ -267,7 +272,7 @@ void loop() {
   if (M5.BtnC.wasPressed()) {
     adjustBacklight(-1);
   }
-  
+
   // 寝室モードフラグのトグル
   if (M5.BtnB.wasPressed()) {
     bedroomModeFlg = !bedroomModeFlg;
