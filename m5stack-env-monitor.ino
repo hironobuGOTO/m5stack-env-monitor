@@ -189,8 +189,8 @@ void setSpriteBackColor(struct fullColor structure){
 // LEDを点灯する関数
 void updateLedBar(){
   // LEDの点灯処理
-  if (!bedroomModeFlg) {
-    // フラグが立ってないときのLED消灯処理
+  if (bedroomModeFlg) {
+    // フラグが立っているときのLED消灯処理
     setLedColor(0, 0, 0, 0);
   }else{
     // 警告
@@ -268,7 +268,7 @@ void loop() {
     adjustBacklight(-1);
   }
   
-  // LED点灯フラグのトグル
+  // 寝室モードフラグのトグル
   if (M5.BtnB.wasPressed()) {
     bedroomModeFlg = !bedroomModeFlg;
   }
