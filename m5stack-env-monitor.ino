@@ -60,11 +60,13 @@ fullColor hot = {255,165, 0};
 // 暑くてたまらないときの画面背景色
 fullColor boiling {255, 127, 80};
 
+String discomfortStatus = "comfort";
+
 // バックライトの輝度を操作する値 0〜5, 初期値は中央値
 unsigned char backlightCnt = 2;
 
 // LEDの明滅を決めるフラグ
-bool brightLedFlg = true;
+bool bedroomModeFlg = false;
 
 //温度、相対湿度から絶対湿度を計算する関数
 uint32_t getAbsoluteHumidity(float temperature, float humidity) { 
@@ -118,22 +120,29 @@ void mesureSensorValues() {
 // 画面表示する関数
 void updateScreen(){
   // Bボタンが押されたとき、色を黒にする
-  if (!brightLedFlg) {
+  if (bedroomModeFlg) {
     sprite.fillScreen(TFT_BLACK);
+    discomfortStatus = "comfort";
   }else{
     // 不快指数の画面表示
-    if (discomfortIndex < 55) {
-      setSpriteBackColor(cold);
-    }else if (discomfortIndex < 60) {
-      setSpriteBackColor(chilly);
-    }else if (discomfortIndex < 75) {
-      setSpriteBackColor(comfort);
-    }else if (discomfortIndex < 80) {
-      setSpriteBackColor(warm);
-    }else if (discomfortIndex < 85) {
-      setSpriteBackColor(hot);
-    }else if (discomfortIndex >= 85) {
-      setSpriteBackColor(boiling);
+    if (discomfortIndex < 55 && discomfortStatus != "cold") {
+       discomfortStatus = "cold";
+       setSpriteBackColor(cold);
+    }else if (discomfortIndex < 60 && discomfortIndex >= 55 && discomfortStatus != "chilly") {
+       discomfortStatus = "chilly";
+       setSpriteBackColor(chilly);
+    }else if (discomfortIndex < 75 && discomfortIndex >= 60 && discomfortStatus != "comfort") {
+       discomfortStatus = "comfort";
+       setSpriteBackColor(comfort);
+    }else if (discomfortIndex < 80 && discomfortIndex >= 75 && discomfortStatus != "warm") {
+       discomfortStatus = "warm";
+       setSpriteBackColor(warm);
+    }else if (discomfortIndex < 85 && discomfortIndex >= 80 && discomfortStatus != "hot") {
+       discomfortStatus = "hot";
+       setSpriteBackColor(hot);
+    }else if (discomfortIndex >= 85 && discomfortStatus != "boiling") {
+       discomfortStatus = "boiling";
+       setSpriteBackColor(boiling);
     }
   }
   
@@ -147,8 +156,12 @@ void updateScreen(){
   Serial.print("eCO2 "); Serial.print(sgp.eCO2); Serial.print("\t");
   Serial.print("TVOC "); Serial.print(sgp.TVOC); Serial.print("\n");
 
-  //backlightCntに応じて画面輝度を調節する
-  M5.Lcd.setBrightness((50 * backlightCnt) + 5);
+  if (bedroomModeFlg) {
+    M5.Lcd.setBrightness(5);
+  }else{
+    //backlightCntに応じて画面輝度を調節する
+    M5.Lcd.setBrightness((50 * backlightCnt) + 5);
+  }
 }
 
 // バックライトの明度を操作する関数
@@ -176,7 +189,7 @@ void setSpriteBackColor(struct fullColor structure){
 // LEDを点灯する関数
 void updateLedBar(){
   // LEDの点灯処理
-  if (!brightLedFlg) {
+  if (!bedroomModeFlg) {
     // フラグが立ってないときのLED消灯処理
     setLedColor(0, 0, 0, 0);
   }else{
@@ -257,7 +270,7 @@ void loop() {
   
   // LED点灯フラグのトグル
   if (M5.BtnB.wasPressed()) {
-    brightLedFlg = !brightLedFlg;
+    bedroomModeFlg = !bedroomModeFlg;
   }
 
   // LEDバーでの表示
