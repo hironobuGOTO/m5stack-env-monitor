@@ -37,28 +37,31 @@ struct fullColor {
 };
 
 // 注意のLED色
-fullColor attentionColor = {255, 215, 0};
+fullColor attention = {255, 215, 0};
 
 // 警告のLED色
-fullColor cautionColor = {255, 69, 0};
+fullColor caution = {255, 69, 0};
 
 // 寒いときの画面背景色
-fullColor coldColor = {0, 0, 205};
+fullColor cold = {0, 0, 205};
 
 // 肌寒いときの画面背景色
-fullColor chillyColor = {135, 206, 235};
+fullColor chilly = {135, 206, 235};
+
+// 快適なときの画面背景色
+fullColor comfort = {0, 0, 0};
 
 // やや暑いときの画面背景色
-fullColor warmColor = {240, 230, 140};
+fullColor warm = {240, 230, 140};
 
 // 暑いときの画面背景色
-fullColor hotColor = {255,165, 0};
+fullColor hot = {255,165, 0};
 
 // 暑くてたまらないときの画面背景色
-fullColor boilingColor {255, 127, 80};
+fullColor boiling {255, 127, 80};
 
 // バックライトの輝度を操作する値 0〜5, 初期値は中央値
-unsigned char backLightCnt = 2;
+unsigned char backlightCnt = 2;
 
 // LEDの明滅を決めるフラグ
 bool brightLedFlg = true;
@@ -92,6 +95,67 @@ uint16_t getColor(uint8_t red, uint8_t green, uint8_t blue){
 // Sprite クラスのインスタンス化
 TFT_eSprite sprite = TFT_eSprite(&M5.Lcd);
 
+// 各数値を計測する関数
+void mesureSensorValues() {
+  //気圧を測定 (hPa に変換)
+  pressure = bme.readPressure() / 100; 
+  //sht30 (温湿度センサー) にて、温湿度を測定
+  if(sht30.get()==0){
+    tmp = sht30.cTemp;
+    hum = sht30.humidity;
+  }
+  //絶対湿度をSGP30にセット
+  sgp.setHumidity(getAbsoluteHumidity(tmp, hum));
+  //eCO2 TVOC読込に失敗したときのエラー表示
+  if (! sgp.IAQmeasure()) { 
+    Serial.println("Measurement failed");
+    while(1);
+  }
+  // 不快指数の計算
+  discomfortIndex = ((0.81 * tmp) + ((0.01 * hum) * ((0.99 * tmp) - 14.3)) + 46.3);
+}
+
+// 画面表示する関数
+void updateScreen(){
+  // Bボタンが押されたとき、色を黒にする
+  if (!brightLedFlg) {
+    sprite.fillScreen(TFT_BLACK);
+  }else{
+    // 不快指数の画面表示
+    if (discomfortIndex < 55) {
+      setSpriteBackColor(cold);
+    }else if (discomfortIndex < 60) {
+      setSpriteBackColor(chilly);
+    }else if (discomfortIndex < 75) {
+      setSpriteBackColor(comfort);
+    }else if (discomfortIndex < 80) {
+      setSpriteBackColor(warm);
+    }else if (discomfortIndex < 85) {
+      setSpriteBackColor(hot);
+    }else if (discomfortIndex >= 85) {
+      setSpriteBackColor(boiling);
+    }
+  }
+  
+  // 計測結果をスプライトに入力
+  setSpriteMeasurement(sgp.TVOC, sgp.eCO2, pressure, tmp, hum);
+  
+  // スプライトを画面に表示
+  sprite.pushSprite(0, 0);
+  
+  // eCO2とTVOCの値をシリアルモニタに通信する
+  Serial.print("eCO2 "); Serial.print(sgp.eCO2); Serial.print("\t");
+  Serial.print("TVOC "); Serial.print(sgp.TVOC); Serial.print("\n");
+
+  //backlightCntに応じて画面輝度を調節する
+  M5.Lcd.setBrightness((50 * backlightCnt) + 5);
+}
+
+// バックライトの明度を操作する関数
+void adjustBacklight(int i) {
+  backlightCnt += i;
+}
+
 // 計測結果をスプライトに入力する関数
 void setSpriteMeasurement(int tvoc, int eco2, float pressure, float tmp, float hum){
   sprite.setCursor(0, 40);
@@ -107,6 +171,26 @@ void setSpriteMeasurement(int tvoc, int eco2, float pressure, float tmp, float h
 // 構造体を参照して背景色をスプライトに入力する関数
 void setSpriteBackColor(struct fullColor structure){
   sprite.fillScreen(getColor(structure.r, structure.g, structure.b));
+}
+
+// LEDを点灯する関数
+void updateLedBar(){
+  // LEDの点灯処理
+  if (!brightLedFlg) {
+    // フラグが立ってないときのLED消灯処理
+    setLedColor(0, 0, 0, 0);
+  }else{
+    // 警告
+    if (sgp.eCO2 > cautionPoint) {
+      setLedColor(caution.r, caution.g, caution.b, 50);
+    // 注意
+    }else if(sgp.eCO2 > attentionPoint) {
+      setLedColor(attention.r, attention.g, attention.b, 25);
+    // 閾値以下のときのLED消灯処理
+    }else{
+      setLedColor(0, 0, 0, 0);
+    }
+  }
 }
 
 void setup() {
@@ -156,87 +240,26 @@ void setup() {
 void loop() {
   // 画面輝度調整の必須処理
   M5.update();
-  //気圧を測定 (hPa に変換)
-  pressure = bme.readPressure() / 100; 
-  //sht30 (温湿度センサー) にて、温湿度を測定
-  if(sht30.get()==0){
-    tmp = sht30.cTemp;
-    hum = sht30.humidity;
-  }
-  //絶対湿度をSGP30にセット
-  sgp.setHumidity(getAbsoluteHumidity(tmp, hum));
-  //eCO2 TVOC読込に失敗したときのエラー表示
-  if (! sgp.IAQmeasure()) { 
-    Serial.println("Measurement failed");
-    while(1);
-  }
 
-  // 不快指数の計算
-  discomfortIndex = ((0.81 * tmp) + ((0.01 * hum) * ((0.99 * tmp) - 14.3)) + 46.3);
+  // 計測
+  mesureSensorValues();
 
-  // Bボタンが押されたとき、色を黒にする
-  if (!brightLedFlg) {
-    sprite.fillScreen(TFT_BLACK);
-  }else{
-    // 不快指数の画面表示
-    if (discomfortIndex < 55) {
-      setSpriteBackColor(coldColor);
-    }else if (discomfortIndex < 60) {
-      setSpriteBackColor(chillyColor);
-    }else if (discomfortIndex < 75) {
-      sprite.fillScreen(TFT_BLACK);
-    }else if (discomfortIndex < 80) {
-      setSpriteBackColor(warmColor);
-    }else if (discomfortIndex < 85) {
-      setSpriteBackColor(hotColor);
-    }else if (discomfortIndex >= 85) {
-      setSpriteBackColor(boilingColor);
-    }
-  }
-  
-  // 計測結果をスプライトに入力
-  setSpriteMeasurement(sgp.TVOC, sgp.eCO2, pressure, tmp, hum);
-  
-  // スプライトを画面に表示
-  sprite.pushSprite(0, 0);
-
-  // 不要になったスプライトを削除してメモリを解放
-  
-  // eCO2とTVOCの値をシリアルモニタに通信する
-  Serial.print("eCO2 "); Serial.print(sgp.eCO2); Serial.print("\t");
-  Serial.print("TVOC "); Serial.print(sgp.TVOC); Serial.print("\n");
+  // 画面表示
+  updateScreen();
   
   // ボタンで画面輝度調節
   if (M5.BtnA.wasPressed()) {
-    if(backLightCnt < 5) {
-      backLightCnt++;
-    }
+    adjustBacklight(1);
   }
   if (M5.BtnC.wasPressed()) {
-    if(backLightCnt > 0) {
-      backLightCnt--;
-    }
+    adjustBacklight(-1);
   }
-  M5.Lcd.setBrightness((50 * backLightCnt) + 5);
   
   // LED点灯フラグのトグル
   if (M5.BtnB.wasPressed()) {
     brightLedFlg = !brightLedFlg;
   }
-  // LEDの点灯処理
-  if (!brightLedFlg) {
-    // フラグが立ってないときのLED消灯処理
-    setLedColor(0, 0, 0, 0);
-  }else{
-    // 警告
-    if (sgp.eCO2 > cautionPoint) {
-      setLedColor(cautionColor.r, cautionColor.g, cautionColor.b, 50);
-    // 注意
-    }else if(sgp.eCO2 > attentionPoint) {
-      setLedColor(attentionColor.r, attentionColor.g, attentionColor.b, 25);
-    // 閾値以下のときのLED消灯処理
-    }else{
-      setLedColor(0, 0, 0, 0);
-    }
-  }
+
+  // LEDバーでの表示
+  updateLedBar();
 }
