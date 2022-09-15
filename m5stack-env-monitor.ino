@@ -1,4 +1,5 @@
 #include <M5Stack.h>
+#include <WiFi.h>
 #include <Adafruit_SGP30.h>
 Adafruit_SGP30 sgp;
 uint16_t eco2_base = 37335; //eCO2 baseline仮設定値
@@ -15,6 +16,14 @@ Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ80
 
 Adafruit_BMP280 bme;
 SHT3X sht30;
+
+#include "AudioFileSourceSD.h"
+#include "AudioGeneratorMP3.h"
+#include "AudioOutputI2S.h"
+
+AudioGeneratorMP3 *mp3;
+AudioFileSourceSD *file;
+AudioOutputI2S *out;
 
 float tmp = 0.0;
 float hum = 0.0;
@@ -65,8 +74,13 @@ String discomfortStatus = "comfort";
 // バックライトの輝度を操作する値 0〜5, 初期値は中央値
 unsigned char backlightCnt = 2;
 
-// LEDの明滅を決めるフラグ
+// 寝室モードかを確認するフラグ
 bool bedroomModeFlg = false;
+
+// 二酸化炭素濃度が高まった後下がるまで喋らないようにするフラグ
+bool cautionFlg = false;
+
+bool attentionFlg = false;
 
 //温度、相対湿度から絶対湿度を計算する関数
 uint32_t getAbsoluteHumidity(float temperature, float humidity) {
@@ -170,7 +184,7 @@ void adjustBacklight(int i) {
   if (backlightCnt > 5) {
     backlightCnt = 5;
   } else if (backlightCnt < 0) {
-    backlichtCnt = 0;
+    backlightCnt = 0;
   }
 }
 
@@ -198,24 +212,45 @@ void updateLedBar() {
     // フラグが立っているときのLED消灯処理
     setLedColor(0, 0, 0, 0);
   } else {
-    // 警告
-    if (sgp.eCO2 > cautionPoint) {
+    if (sgp.eCO2 > cautionPoint && !cautionFlg) {
+      // 警告
       setLedColor(caution.r, caution.g, caution.b, 50);
+      playMP3("/1500ppm.mp3");
+      cautionFlg = true;
+    } else if (sgp.eCO2 > attentionPoint && !attentionFlg) {
       // 注意
-    } else if (sgp.eCO2 > attentionPoint) {
       setLedColor(attention.r, attention.g, attention.b, 25);
-      // 閾値以下のときのLED消灯処理
+      playMP3("/1000ppm.mp3");
+      attentionFlg = true;
+      cautionFlg = false;
     } else {
+      // 閾値以下のときのLED消灯処理
       setLedColor(0, 0, 0, 0);
+      cautionFlg = false;
+      attentionFlg = false;
     }
+  }
+}
+
+// MP3ファイルを再生する関数
+void playMP3(char *filename) {
+  file = new AudioFileSourceSD(filename);
+  out = new AudioOutputI2S(0, 1);
+  out->SetOutputModeMono(true);
+  out->SetGain(1.0);
+  mp3 = new AudioGeneratorMP3();
+  mp3->begin(file, out);
+  // 音声ファイルが終了するまで他の処理を中断する
+  while(mp3->isRunning()) {
+    if (!mp3->loop()) mp3->stop();
   }
 }
 
 void setup() {
   // LCD, SD, UART, I2C をそれぞれ初期化するかを指定して初期化する
-  // (今回SDカードを使っていないため初期化していない)
-  M5.begin(true, false, true, true);
-
+  M5.begin(true, true, true, true);
+  M5.Power.begin();
+  WiFi.mode(WIFI_OFF);
   //シリアル通信初期化
   Serial.begin(9600);
 
@@ -254,8 +289,9 @@ void setup() {
   sprite.setTextFont(4);
   sprite.setTextSize(1);
   sprite.createSprite(M5.Lcd.width(), M5.Lcd.height());
+
 }
-void loop() {
+void loop() {  
   // 画面輝度調整の必須処理
   M5.update();
 
@@ -280,4 +316,5 @@ void loop() {
 
   // LEDバーでの表示
   updateLedBar();
+
 }
