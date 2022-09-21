@@ -25,6 +25,8 @@ AudioGeneratorMP3 *mp3;
 AudioFileSourceSD *file;
 AudioOutputI2S *out;
 
+#include <ArduinoJson.h>
+
 float tmp = 0.0;
 float hum = 0.0;
 float pressure = 0.0;
@@ -81,6 +83,11 @@ bool bedroomModeFlg = false;
 bool cautionFlg = false;
 
 bool attentionFlg = false;
+
+// configFile の定義
+File configFile;
+// 計測値を保存しておくJSON
+DynamicJsonDocument measurement(1024);
 
 //温度、相対湿度から絶対湿度を計算する関数
 uint32_t getAbsoluteHumidity(float temperature, float humidity) {
@@ -212,17 +219,21 @@ void updateLedBar() {
     // フラグが立っているときのLED消灯処理
     setLedColor(0, 0, 0, 0);
   } else {
-    if (sgp.eCO2 > cautionPoint && !cautionFlg) {
+    if (sgp.eCO2 > cautionPoint) {
       // 警告
       setLedColor(caution.r, caution.g, caution.b, 50);
-      playMP3("/1500ppm.mp3");
-      cautionFlg = true;
-    } else if (sgp.eCO2 > attentionPoint && !attentionFlg) {
+      if (!cautionFlg) {
+        playMP3("/1500ppm.mp3");
+        cautionFlg = true; 
+      }
+    } else if (sgp.eCO2 > attentionPoint) {
       // 注意
       setLedColor(attention.r, attention.g, attention.b, 25);
-      playMP3("/1000ppm.mp3");
-      attentionFlg = true;
-      cautionFlg = false;
+      if (!attentionFlg) {
+        playMP3("/1000ppm.mp3");
+        attentionFlg = true;
+        cautionFlg = false;
+      }
     } else {
       // 閾値以下のときのLED消灯処理
       setLedColor(0, 0, 0, 0);
@@ -246,16 +257,37 @@ void playMP3(char *filename) {
   }
 }
 
+// SDカードに現在の設定情報を出力する関数
+void jsonOutput() {
+
+  measurement["backlightBrightness"] = (50 * backlightCnt) + 5;
+  measurement["bedroomFlag"] = bedroomModeFlg;
+  
+  String output;
+  serializeJson(measurement, output);
+
+  configFile.println(output);
+  configFile.close();
+}
+
 void setup() {
   // LCD, SD, UART, I2C をそれぞれ初期化するかを指定して初期化する
   M5.begin(true, true, true, true);
   M5.Power.begin();
+  // SDカードが初期化できなかったとき、エラーを返す
+  if (!SD.begin()) {
+    M5.Lcd.println("Card failed, or not present");
+    while (1);
+  }
+  
   WiFi.mode(WIFI_OFF);
   //シリアル通信初期化
   Serial.begin(9600);
 
+  // SDカードの設定ファイルをconfigFile 
+  configFile = SD.open("/config.txt", FILE_WRITE);
   // SGP30 が初期化できなかったとき、エラーを返す
-  if (! sgp.begin()) {
+  if (!sgp.begin()) {
     Serial.println("Sensor not found :(");
     while (1);
   }
@@ -317,4 +349,5 @@ void loop() {
   // LEDバーでの表示
   updateLedBar();
 
+  jsonOutput();
 }
