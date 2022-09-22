@@ -90,8 +90,8 @@ unsigned char tmpBacklightCnt;
 bool tmpBedroomModeFlg;
 
 // Wi-Fi 接続に必要な文字列
-String ssid = "Eifie";
-String password = "2446c7a7d0dbd"
+String ssid = "00000";
+String password = "00000"
 
 // プログラムを開始してから経過した時間を保持する変数
 unsigned long lapsedTime;
