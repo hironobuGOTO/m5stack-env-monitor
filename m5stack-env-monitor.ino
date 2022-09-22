@@ -89,9 +89,6 @@ unsigned char tmpBacklightCnt;
 
 bool tmpBedroomModeFlg;
 
-// 計測値を保存しておくJSON
-DynamicJsonDocument measurement(1024);
-
 //温度、相対湿度から絶対湿度を計算する関数
 uint32_t getAbsoluteHumidity(float temperature, float humidity) {
   // approximation formula from Sensirion SGP30 Driver Integration chapter 3.15
@@ -267,8 +264,11 @@ void jsonOutput() {
     // configFile の定義
     File configFile = SD.open("/config.txt", FILE_WRITE);
 
+    // 計測値を保存しておくJSON
+    DynamicJsonDocument measurement(1024);
+
     // JSONに値を入力
-    measurement["backlightBrightness"] = (50 * backlightCnt) + 5;
+    measurement["backlightCnt"] = backlightCnt;
     measurement["bedroomFlag"] = bedroomModeFlg;
 
     // JSONのシリアライズ
@@ -294,6 +294,20 @@ void setup() {
     M5.Lcd.println("Card failed, or not present");
     while (1);
   }
+
+  File configFile = SD.open("/config.txt", FILE_READ);
+  char configArray[configFile.size()];
+  for (int i = 0; i < configFile.size(); i++) {
+    configArray[i] = configFile.read();
+  }
+  configFile.close();
+  DynamicJsonDocument configJson(1024);
+  deserializeJson(configJson,configArray);
+
+  backlightCnt = configJson["backlightCnt"];
+  bedroomModeFlg = configJson["bedroomFlag"];
+  
+  
   
   WiFi.mode(WIFI_OFF);
   //シリアル通信初期化
