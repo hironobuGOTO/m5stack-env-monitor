@@ -84,8 +84,11 @@ bool cautionFlg = false;
 
 bool attentionFlg = false;
 
-// configFile の定義
-File configFile;
+// 変更があったときのみSDカードに保存するための一時退避所
+unsigned char tmpBacklightCnt;
+
+bool tmpBedroomModeFlg;
+
 // 計測値を保存しておくJSON
 DynamicJsonDocument measurement(1024);
 
@@ -257,17 +260,29 @@ void playMP3(char *filename) {
   }
 }
 
-// SDカードに現在の設定情報を出力する関数
+// 生成したJSONをSDカードに出力する関数
 void jsonOutput() {
+  // 設定が変わったときのみ書き込む
+  if (tmpBacklightCnt != backlightCnt || tmpBedroomModeFlg != bedroomModeFlg){
+    // configFile の定義
+    File configFile = SD.open("/config.txt", FILE_WRITE);
 
-  measurement["backlightBrightness"] = (50 * backlightCnt) + 5;
-  measurement["bedroomFlag"] = bedroomModeFlg;
-  
-  String output;
-  serializeJson(measurement, output);
+    // JSONに値を入力
+    measurement["backlightBrightness"] = (50 * backlightCnt) + 5;
+    measurement["bedroomFlag"] = bedroomModeFlg;
 
-  configFile.println(output);
-  configFile.close();
+    // JSONのシリアライズ
+    String output;
+    serializeJson(measurement, output);
+
+    // SDカードへの書き込みと処理終了
+    configFile.println(output);
+    configFile.close(); 
+
+    // 現在の設定情報を一時保存
+    tmpBacklightCnt = backlightCnt;
+    tmpBedroomModeFlg = bedroomModeFlg;
+  }
 }
 
 void setup() {
@@ -284,8 +299,6 @@ void setup() {
   //シリアル通信初期化
   Serial.begin(9600);
 
-  // SDカードの設定ファイルをconfigFile 
-  configFile = SD.open("/config.txt", FILE_WRITE);
   // SGP30 が初期化できなかったとき、エラーを返す
   if (!sgp.begin()) {
     Serial.println("Sensor not found :(");
@@ -349,5 +362,6 @@ void loop() {
   // LEDバーでの表示
   updateLedBar();
 
+  // 生成したJSONをSDカードに出力する
   jsonOutput();
 }
