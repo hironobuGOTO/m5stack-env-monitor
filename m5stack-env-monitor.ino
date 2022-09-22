@@ -89,6 +89,13 @@ unsigned char tmpBacklightCnt;
 
 bool tmpBedroomModeFlg;
 
+// Wi-Fi 接続に必要な文字列
+String ssid = "Eifie";
+String password = "2446c7a7d0dbd"
+
+// プログラムを開始してから経過した時間を保持する変数
+unsigned long lapsedTime;
+
 //温度、相対湿度から絶対湿度を計算する関数
 uint32_t getAbsoluteHumidity(float temperature, float humidity) {
   // approximation formula from Sensirion SGP30 Driver Integration chapter 3.15
@@ -258,7 +265,7 @@ void playMP3(char *filename) {
 }
 
 // 生成したJSONをSDカードに出力する関数
-void jsonOutput() {
+void jsonConfigOutput() {
   // 設定が変わったときのみ書き込む
   if (tmpBacklightCnt != backlightCnt || tmpBedroomModeFlg != bedroomModeFlg){
     // configFile の定義
@@ -285,6 +292,16 @@ void jsonOutput() {
   }
 }
 
+// 計測した値をSDカードに保存する関数
+void mesureValuesOutput(){
+  lapsedTime = millis();
+  if(!lapsedTime % 60000){
+    mesureValues = SD.open("/mesure_values.csv", FILE_APPEND);
+    mesureValues.println();
+    mesureValues.close();
+  }
+}
+
 void setup() {
   // LCD, SD, UART, I2C をそれぞれ初期化するかを指定して初期化する
   M5.begin(true, true, true, true);
@@ -306,13 +323,24 @@ void setup() {
 
   backlightCnt = configJson["backlightCnt"];
   bedroomModeFlg = configJson["bedroomFlag"];
-  
-  
-  
-  WiFi.mode(WIFI_OFF);
-  //シリアル通信初期化
-  Serial.begin(9600);
 
+  // Wi-Fiを起動してntpから現在時刻を取得する
+  WiFi.begin(ssid, password);
+  // Wi-Fi接続が完了するのを待つ
+  M5.Lcd.printf("Connecting");
+  while (WiFi.status() != WL_CONNECTED) {
+    M5.Lcd.printf(".");
+    delay(1000);
+  }
+  // 時刻の補正
+  configTime(9*3600L,0,"ntp.nict.jp","time.google.com","ntp.jst.mfeed.ad.jp");
+  // Wi-Fiの切断処理
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+  
+  // シリアル通信初期化
+  Serial.begin(9600);
+  
   // SGP30 が初期化できなかったとき、エラーを返す
   if (!sgp.begin()) {
     Serial.println("Sensor not found :(");
@@ -333,6 +361,7 @@ void setup() {
   M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
   M5.Lcd.setTextDatum(TL_DATUM);
   M5.Lcd.setCursor(20, 40);
+  M5.Lcd.printf("SGP30 waking...")
   // SGP30が動作するまで15秒起動中の表示を出す
   for (int i = 0; i < 15; i++) {
     M5.Lcd.printf(".");
@@ -376,6 +405,10 @@ void loop() {
   // LEDバーでの表示
   updateLedBar();
 
-  // 生成したJSONをSDカードに出力する
-  jsonOutput();
+  // 生成した設定情報JSONをSDカードに出力する
+  jsonConfigOutput();
+
+  // 計測した値をSDカードに出力する
+  mesureValuesOutput();
+  
 }
