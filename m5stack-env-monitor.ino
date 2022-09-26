@@ -90,11 +90,8 @@ unsigned char tmpBacklightCnt;
 bool tmpBedroomModeFlg;
 
 // Wi-Fi 接続に必要な文字列
-String ssid = "00000";
-String password = "00000"
-
-// プログラムを開始してから経過した時間を保持する変数
-unsigned long lapsedTime;
+const char* ssid = "00000";
+const char* password = "00000";
 
 //温度、相対湿度から絶対湿度を計算する関数
 uint32_t getAbsoluteHumidity(float temperature, float humidity) {
@@ -126,7 +123,7 @@ uint16_t getColor(uint8_t red, uint8_t green, uint8_t blue) {
 TFT_eSprite sprite = TFT_eSprite(&M5.Lcd);
 
 // 各数値を計測する関数
-void mesureSensorValues() {
+void measureSensorValues() {
   //気圧を測定 (hPa に変換)
   pressure = bme.readPressure() / 100;
   //sht30 (温湿度センサー) にて、温湿度を測定
@@ -293,13 +290,29 @@ void jsonConfigOutput() {
 }
 
 // 計測した値をSDカードに保存する関数
-void mesureValuesOutput(){
-  lapsedTime = millis();
-  if(!lapsedTime % 60000){
-    mesureValues = SD.open("/mesure_values.csv", FILE_APPEND);
-    mesureValues.println();
-    mesureValues.close();
-  }
+void measureValuesOutput() {
+  // 時間をtm型で取得する変数
+  struct tm timeInfo;
+  getLocalTime(&timeInfo);
+  String measureDay = makeLocalDay(timeInfo);
+  String measureTime = makeLocalTime(timeInfo);
+  File measureValues = SD.open("/measure_values.csv", FILE_APPEND);
+  measureValues.println(measureDay + "," + measureTime + "," + sgp.eCO2 + "," + sgp.TVOC + "," + tmp + "," + hum + "," + pressure + "\n");
+  Serial.print(measureDay + "," + measureTime + "," + sgp.eCO2 + "," + sgp.TVOC + "," + tmp + "," + hum + "," + pressure + "\n");
+  measureValues.close();
+}
+
+// 月と日を合成する関数
+String makeLocalDay(struct tm timeinfo) {
+  int measureMonth = timeinfo.tm_mon + 1;
+  String measureMD = measureMonth + "/" + timeinfo.tm_mday;;
+  return measureMD;
+}
+
+// 時と分を合成する関数
+String makeLocalTime(struct tm timeinfo) {
+  String measureHM = timeinfo.tm_hour + ":" + timeinfo.tm_min;
+  return measureHM;
 }
 
 void setup() {
@@ -361,7 +374,7 @@ void setup() {
   M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
   M5.Lcd.setTextDatum(TL_DATUM);
   M5.Lcd.setCursor(20, 40);
-  M5.Lcd.printf("SGP30 waking...")
+  M5.Lcd.printf("SGP30 waking...");
   // SGP30が動作するまで15秒起動中の表示を出す
   for (int i = 0; i < 15; i++) {
     M5.Lcd.printf(".");
@@ -384,7 +397,7 @@ void loop() {
   M5.update();
 
   // 計測
-  mesureSensorValues();
+  measureSensorValues();
 
   // 画面表示
   updateScreen();
@@ -408,7 +421,9 @@ void loop() {
   // 生成した設定情報JSONをSDカードに出力する
   jsonConfigOutput();
 
-  // 計測した値をSDカードに出力する
-  mesureValuesOutput();
-  
+  //　プログラムを実行してからの時間を計測する
+  unsigned long lapsedTime = millis();
+  if(lapsedTime % 1000 == 0){
+    measureValuesOutput();
+  }
 }
