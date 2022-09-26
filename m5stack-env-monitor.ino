@@ -90,8 +90,13 @@ unsigned char tmpBacklightCnt;
 bool tmpBedroomModeFlg;
 
 // Wi-Fi 接続に必要な文字列
-const char* ssid = "00000";
-const char* password = "00000";
+const char* ssid = "Eievui";
+const char* password = "2446c7a7d0dbd";
+
+int setCsvWroteTime = 0;
+
+// 時間をtm型で取得する変数
+struct tm timeInfo;
 
 //温度、相対湿度から絶対湿度を計算する関数
 uint32_t getAbsoluteHumidity(float temperature, float humidity) {
@@ -178,8 +183,8 @@ void updateScreen() {
   sprite.pushSprite(0, 0);
 
   // eCO2とTVOCの値をシリアルモニタに通信する
-  Serial.print("eCO2 "); Serial.print(sgp.eCO2); Serial.print("\t");
-  Serial.print("TVOC "); Serial.print(sgp.TVOC); Serial.print("\n");
+  //Serial.print("eCO2 "); Serial.print(sgp.eCO2); Serial.print("\t");
+  //Serial.print("TVOC "); Serial.print(sgp.TVOC); Serial.print("\n");
 
   if (bedroomModeFlg) {
     M5.Lcd.setBrightness(5);
@@ -262,7 +267,7 @@ void playMP3(char *filename) {
 }
 
 // 生成したJSONをSDカードに出力する関数
-void jsonConfigOutput() {
+void saveConfig() {
   // 設定が変わったときのみ書き込む
   if (tmpBacklightCnt != backlightCnt || tmpBedroomModeFlg != bedroomModeFlg){
     // configFile の定義
@@ -291,9 +296,8 @@ void jsonConfigOutput() {
 
 // 計測した値をSDカードに保存する関数
 void measureValuesOutput() {
-  // 時間をtm型で取得する変数
-  struct tm timeInfo;
-  getLocalTime(&timeInfo);
+  bool getTime = getLocalTime(&timeInfo);
+  Serial.print(getTime); Serial.print("\n");
   String measureDay = makeLocalDay(timeInfo);
   String measureTime = makeLocalTime(timeInfo);
   File measureValues = SD.open("/measure_values.csv", FILE_APPEND);
@@ -304,15 +308,15 @@ void measureValuesOutput() {
 
 // 月と日を合成する関数
 String makeLocalDay(struct tm timeinfo) {
-  int measureMonth = timeinfo.tm_mon + 1;
-  String measureMD = measureMonth + "/" + timeinfo.tm_mday;;
-  return measureMD;
+  int month = timeinfo.tm_mon + 1;
+  String dateString = month + "/" + timeinfo.tm_mday;
+  return dateString;
 }
 
-// 時と分を合成する関数
+// tm オブジェクトから時刻文字列 (例: "00:00") を返す関数
 String makeLocalTime(struct tm timeinfo) {
-  String measureHM = timeinfo.tm_hour + ":" + timeinfo.tm_min;
-  return measureHM;
+  String timeString = timeinfo.tm_hour + ":" + timeinfo.tm_min;
+  return timeString;
 }
 
 void setup() {
@@ -348,8 +352,8 @@ void setup() {
   // 時刻の補正
   configTime(9*3600L,0,"ntp.nict.jp","time.google.com","ntp.jst.mfeed.ad.jp");
   // Wi-Fiの切断処理
-  WiFi.disconnect(true);
-  WiFi.mode(WIFI_OFF);
+  //WiFi.disconnect(true);
+  //WiFi.mode(WIFI_OFF);
   
   // シリアル通信初期化
   Serial.begin(9600);
@@ -419,11 +423,13 @@ void loop() {
   updateLedBar();
 
   // 生成した設定情報JSONをSDカードに出力する
-  jsonConfigOutput();
+  saveConfig();
 
-  //　プログラムを実行してからの時間を計測する
+  // 1秒経過ごとにログを保存
   unsigned long lapsedTime = millis();
-  if(lapsedTime % 1000 == 0){
+  Serial.print(lapsedTime); Serial.print("\n");
+  if(lapsedTime > setCsvWroteTime + 1000){
     measureValuesOutput();
+    setCsvWroteTime = lapsedTime;
   }
 }
