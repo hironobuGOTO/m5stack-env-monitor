@@ -90,10 +90,6 @@ unsigned char tmpBacklightCnt;
 
 bool tmpBedroomModeFlg;
 
-// Wi-Fi 接続に必要な文字列
-const char* ssid = "00000";
-const char* password = "00000";
-
 int setCsvWroteTime = 0;
 
 // 時間をtm型で取得する変数
@@ -310,13 +306,13 @@ void saveLog() {
 // tm オブジェクトから日付文字列 (例: "12/1") を返す関数
 String getDateString(struct tm timeinfo) {
   int month = timeinfo.tm_mon + 1;
-  String dateString = month + "/" + timeinfo.tm_mday;
+  String dateString = String(month) + "/" + String(timeinfo.tm_mday);
   return dateString;
 }
 
 // tm オブジェクトから時刻文字列 (例: "00:00") を返す関数
 String getTimeString(struct tm timeinfo) {
-  String timeString = timeinfo.tm_hour + ":" + timeinfo.tm_min;
+  String timeString = String(timeinfo.tm_hour) + ":" + String(timeinfo.tm_min);
   return timeString;
 }
 
@@ -343,7 +339,7 @@ void setup() {
   bedroomModeFlg = configJson["bedroomFlag"];
 
   // Wi-Fiを起動してntpから現在時刻を取得する
-  WiFi.begin(ssid, password);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   // Wi-Fi接続が完了するのを待つ
   M5.Lcd.printf("Connecting");
   while (WiFi.status() != WL_CONNECTED) {
