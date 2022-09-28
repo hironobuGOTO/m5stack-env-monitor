@@ -1,4 +1,4 @@
-#include "ssid.h"
+#include "config.h"
 #include <M5Stack.h>
 #include <WiFi.h>
 #include <Adafruit_SGP30.h>
@@ -18,13 +18,10 @@ Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ80
 Adafruit_BMP280 bme;
 SHT3X sht30;
 
+// ESP8266Audioライブラリ
 #include "AudioFileSourceSD.h"
 #include "AudioGeneratorMP3.h"
 #include "AudioOutputI2S.h"
-
-AudioGeneratorMP3 *mp3;
-AudioFileSourceSD *file;
-AudioOutputI2S *out;
 
 #include <ArduinoJson.h>
 
@@ -48,30 +45,50 @@ struct fullColor {
   int b;
 };
 
+struct colorData {
+  String name;
+  struct fullColor;
+};
+
+struct colorData eco2Color = {
+  {"colorAttention", 255, 215, 0},
+  {"colorCaution", 255, 69, 0}
+};
+
+struct colorData discomfortColor = {
+  {"colorCold", 0, 0, 205},
+  {"colorChilly", 135, 206, 235},
+  {"colorComfort", 0, 0, 0},
+  {"colorWarm", 240, 230, 140},
+  {"colorHot", 255, 165, 0},
+  {"colorBoiling", 255,127, 80}
+};
+
 // 注意のLED色
-fullColor attention = {255, 215, 0};
+fullColor colorAttention = {255, 215, 0};
 
 // 警告のLED色
-fullColor caution = {255, 69, 0};
+fullColor colorCaution = {255, 69, 0};
 
 // 寒いときの画面背景色
-fullColor cold = {0, 0, 205};
+fullColor colorCold = {0, 0, 205};
 
 // 肌寒いときの画面背景色
-fullColor chilly = {135, 206, 235};
+fullColor colorChilly = {135, 206, 235};
 
 // 快適なときの画面背景色
-fullColor comfort = {0, 0, 0};
+fullColor colorComfort = {0, 0, 0};
 
 // やや暑いときの画面背景色
-fullColor warm = {240, 230, 140};
+fullColor colorWarm = {240, 230, 140};
 
 // 暑いときの画面背景色
-fullColor hot = {255, 165, 0};
+fullColor colorHot = {255, 165, 0};
 
 // 暑くてたまらないときの画面背景色
-fullColor boiling {255, 127, 80};
+fullColor colorBoiling {255, 127, 80};
 
+// 不快指数状況の初期値
 String discomfortStatus = "comfort";
 
 // バックライトの輝度を操作する値 0〜5, 初期値は中央値
@@ -82,18 +99,99 @@ bool bedroomModeFlg = false;
 
 // 二酸化炭素濃度が高まった後下がるまで喋らないようにするフラグ
 bool cautionFlg = false;
-
 bool attentionFlg = false;
 
 // 変更があったときのみSDカードに保存するための一時退避所
 unsigned char tmpBacklightCnt;
 
+// 寝室モードかを判別するフラグ
 bool tmpBedroomModeFlg;
 
+// 最後にCSVに出力した時間を保管しておく変数
 int setCsvWroteTime = 0;
 
 // 時間をtm型で取得する変数
 struct tm timeInfo;
+
+// Sprite クラスのインスタンス化
+TFT_eSprite sprite = TFT_eSprite(&M5.Lcd);
+
+void setup() {
+  // LCD, SD, UART, I2C をそれぞれ初期化するかを指定して初期化する
+  M5.begin(true, true, true, true);
+  M5.Power.begin();
+  // SDカードが初期化できなかったとき、エラーを返す
+  if (!SD.begin()) {
+    M5.Lcd.println("Card failed, or not present");
+    while (1);
+  }
+
+  // SDカードに保存された設定情報を読み込み、初期値に反映させる
+  File configFile = SD.open("/config.txt", FILE_READ);
+  char configArray[configFile.size()];
+  // 設定ファイルの読み込み
+  for (int i = 0; i < configFile.size(); i++) {
+    configArray[i] = configFile.read();
+  }
+  configFile.close();
+  DynamicJsonDocument configJson(1024);
+  deserializeJson(configJson, configArray);
+
+  backlightCnt = configJson["backlightCnt"];
+  bedroomModeFlg = configJson["bedroomFlag"];
+
+  // Wi-Fiを起動してntpから現在時刻を取得する
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  // Wi-Fi接続が完了するのを待つ
+  M5.Lcd.printf("Connecting");
+  while (WiFi.status() != WL_CONNECTED) {
+    M5.Lcd.printf(".");
+    delay(1000);
+  }
+  // 時刻の補正
+  configTime(9 * 3600L, 0, "ntp.nict.jp", "time.google.com", "ntp.jst.mfeed.ad.jp");
+
+  // シリアル通信初期化
+  Serial.begin(9600);
+
+  // SGP30 が初期化できなかったとき、エラーを返す
+  if (!sgp.begin()) {
+    Serial.println("Sensor not found :(");
+    while (1);
+  }
+  sgp.softReset();
+  // SGP30センサーのIAQアルゴリズムの初期化 softReset後必須
+  sgp.IAQinit();
+  // IAQ計算のためのキャリブレーションした基準値を要求し、結果をパラメータメモリに格納する。
+  // 基準値を設定しない場合はコメントアウト
+  sgp.setIAQBaseline(eco2_base, tvoc_base);
+  // M5Stack側面LEDの起動
+  pixels.begin();
+  //M5Stack の画面初期化
+  M5.Lcd.fillScreen(TFT_BLACK);
+  M5.Lcd.setTextFont(4);
+  M5.Lcd.setTextSize(1);
+  M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
+  M5.Lcd.setTextDatum(TL_DATUM);
+  M5.Lcd.setCursor(20, 40);
+  M5.Lcd.printf("SGP30 waking...");
+  // SGP30が動作するまで15秒起動中の表示を出す
+  for (int i = 0; i < 15; i++) {
+    M5.Lcd.printf(".");
+    delay(1000);
+  }
+  // BMP280 が初期化できなかったとき、エラーを返す
+  while (!bme.begin(0x76)) {
+    M5.Lcd.println("Could not find a valid BMP280 sensor, check wiring!");
+  }
+
+  // スプライトの作成
+  sprite.setColorDepth(8);
+  sprite.setTextFont(4);
+  sprite.setTextSize(1);
+  sprite.createSprite(M5.Lcd.width(), M5.Lcd.height());
+
+}
 
 //温度、相対湿度から絶対湿度を計算する関数
 uint32_t getAbsoluteHumidity(float temperature, float humidity) {
@@ -120,9 +218,6 @@ void setLedColor(int r, int g, int b, int brightness) {
 uint16_t getColor(uint8_t red, uint8_t green, uint8_t blue) {
   return ((red >> 3) << 11) | ((green >> 2) << 5) | (blue >> 3);
 }
-
-// Sprite クラスのインスタンス化
-TFT_eSprite sprite = TFT_eSprite(&M5.Lcd);
 
 // 各数値を計測する関数
 void measureSensorValues() {
@@ -154,22 +249,22 @@ void updateScreen() {
     // 不快指数の画面表示
     if (discomfortIndex < 55 && discomfortStatus != "cold") {
       discomfortStatus = "cold";
-      setSpriteBackColor(cold);
+      setSpriteBackColor(colorCold);
     } else if (discomfortIndex < 60 && discomfortIndex >= 55 && discomfortStatus != "chilly") {
       discomfortStatus = "chilly";
-      setSpriteBackColor(chilly);
+      setSpriteBackColor(colorChilly);
     } else if (discomfortIndex < 75 && discomfortIndex >= 60 && discomfortStatus != "comfort") {
       discomfortStatus = "comfort";
-      setSpriteBackColor(comfort);
+      setSpriteBackColor(colorComfort);
     } else if (discomfortIndex < 80 && discomfortIndex >= 75 && discomfortStatus != "warm") {
       discomfortStatus = "warm";
-      setSpriteBackColor(warm);
+      setSpriteBackColor(colorWarm);
     } else if (discomfortIndex < 85 && discomfortIndex >= 80 && discomfortStatus != "hot") {
       discomfortStatus = "hot";
-      setSpriteBackColor(hot);
+      setSpriteBackColor(colorHot);
     } else if (discomfortIndex >= 85 && discomfortStatus != "boiling") {
       discomfortStatus = "boiling";
-      setSpriteBackColor(boiling);
+      setSpriteBackColor(colorBoiling);
     }
   }
 
@@ -180,8 +275,8 @@ void updateScreen() {
   sprite.pushSprite(0, 0);
 
   // eCO2とTVOCの値をシリアルモニタに通信する
-  //Serial.print("eCO2 "); Serial.print(sgp.eCO2); Serial.print("\t");
-  //Serial.print("TVOC "); Serial.print(sgp.TVOC); Serial.print("\n");
+  Serial.print("eCO2 "); Serial.print(sgp.eCO2); Serial.print("\t");
+  Serial.print("TVOC "); Serial.print(sgp.TVOC); Serial.print("\n");
 
   if (bedroomModeFlg) {
     M5.Lcd.setBrightness(5);
@@ -227,14 +322,14 @@ void updateLedBar() {
   } else {
     if (sgp.eCO2 > cautionPoint) {
       // 警告
-      setLedColor(caution.r, caution.g, caution.b, 50);
+      setLedColor(colorCaution.r, colorCaution.g, colorCaution.b, 50);
       if (!cautionFlg) {
         playMP3("/1500ppm.mp3");
-        cautionFlg = true; 
+        cautionFlg = true;
       }
     } else if (sgp.eCO2 > attentionPoint) {
       // 注意
-      setLedColor(attention.r, attention.g, attention.b, 25);
+      setLedColor(colorAttention.r, colorAttention.g, colorAttention.b, 25);
       if (!attentionFlg) {
         playMP3("/1000ppm.mp3");
         attentionFlg = true;
@@ -251,6 +346,11 @@ void updateLedBar() {
 
 // MP3ファイルを再生する関数
 void playMP3(char *filename) {
+  // mp3ファイルの変数定義
+  AudioGeneratorMP3 *mp3;
+  AudioFileSourceSD *file;
+  AudioOutputI2S *out;
+  
   file = new AudioFileSourceSD(filename);
   out = new AudioOutputI2S(0, 1);
   out->SetOutputModeMono(true);
@@ -258,7 +358,7 @@ void playMP3(char *filename) {
   mp3 = new AudioGeneratorMP3();
   mp3->begin(file, out);
   // 音声ファイルが終了するまで他の処理を中断する
-  while(mp3->isRunning()) {
+  while (mp3->isRunning()) {
     if (!mp3->loop()) mp3->stop();
   }
 }
@@ -266,7 +366,7 @@ void playMP3(char *filename) {
 // 生成したJSONをSDカードに出力する関数
 void saveConfig() {
   // 設定が変わったときのみ書き込む
-  if (tmpBacklightCnt != backlightCnt || tmpBedroomModeFlg != bedroomModeFlg){
+  if (tmpBacklightCnt != backlightCnt || tmpBedroomModeFlg != bedroomModeFlg) {
     // configFile の定義
     File configFile = SD.open("/config.txt", FILE_WRITE);
 
@@ -283,7 +383,7 @@ void saveConfig() {
 
     // SDカードへの書き込みと処理終了
     configFile.println(output);
-    configFile.close(); 
+    configFile.close();
 
     // 現在の設定情報を一時保存
     tmpBacklightCnt = backlightCnt;
@@ -294,12 +394,10 @@ void saveConfig() {
 // 計測した値をSDカードに保存する関数
 void saveLog() {
   bool getTime = getLocalTime(&timeInfo);
-  Serial.print(getTime); Serial.print("\n");
   String measureDay = getDateString(timeInfo);
   String measureTime = getTimeString(timeInfo);
   File measureValues = SD.open("/measure_values.csv", FILE_APPEND);
-  measureValues.println(measureDay + "," + measureTime + "," + sgp.eCO2 + "," + sgp.TVOC + "," + tmp + "," + hum + "," + pressure + "\n");
-  Serial.print(measureDay + "," + measureTime + "," + sgp.eCO2 + "," + sgp.TVOC + "," + tmp + "," + hum + "," + pressure + "\n");
+  measureValues.print(measureDay + "," + measureTime + "," + sgp.eCO2 + "," + sgp.TVOC + "," + tmp + "," + hum + "," + pressure + "\n");
   measureValues.close();
 }
 
@@ -316,84 +414,7 @@ String getTimeString(struct tm timeinfo) {
   return timeString;
 }
 
-void setup() {
-  // LCD, SD, UART, I2C をそれぞれ初期化するかを指定して初期化する
-  M5.begin(true, true, true, true);
-  M5.Power.begin();
-  // SDカードが初期化できなかったとき、エラーを返す
-  if (!SD.begin()) {
-    M5.Lcd.println("Card failed, or not present");
-    while (1);
-  }
-
-  File configFile = SD.open("/config.txt", FILE_READ);
-  char configArray[configFile.size()];
-  for (int i = 0; i < configFile.size(); i++) {
-    configArray[i] = configFile.read();
-  }
-  configFile.close();
-  DynamicJsonDocument configJson(1024);
-  deserializeJson(configJson,configArray);
-
-  backlightCnt = configJson["backlightCnt"];
-  bedroomModeFlg = configJson["bedroomFlag"];
-
-  // Wi-Fiを起動してntpから現在時刻を取得する
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  // Wi-Fi接続が完了するのを待つ
-  M5.Lcd.printf("Connecting");
-  while (WiFi.status() != WL_CONNECTED) {
-    M5.Lcd.printf(".");
-    delay(1000);
-  }
-  // 時刻の補正
-  configTime(9*3600L,0,"ntp.nict.jp","time.google.com","ntp.jst.mfeed.ad.jp");
-  // Wi-Fiの切断処理
-  //WiFi.disconnect(true);
-  //WiFi.mode(WIFI_OFF);
-  
-  // シリアル通信初期化
-  Serial.begin(9600);
-  
-  // SGP30 が初期化できなかったとき、エラーを返す
-  if (!sgp.begin()) {
-    Serial.println("Sensor not found :(");
-    while (1);
-  }
-  sgp.softReset();
-  // SGP30センサーのIAQアルゴリズムの初期化 softReset後必須
-  sgp.IAQinit();
-  // IAQ計算のためのキャリブレーションした基準値を要求し、結果をパラメータメモリに格納する。
-  // 基準値を設定しない場合はコメントアウト
-  sgp.setIAQBaseline(eco2_base, tvoc_base);
-  // M5Stack側面LEDの起動
-  pixels.begin();
-  //M5Stack の画面初期化
-  M5.Lcd.fillScreen(TFT_BLACK);
-  M5.Lcd.setTextFont(4);
-  M5.Lcd.setTextSize(1);
-  M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
-  M5.Lcd.setTextDatum(TL_DATUM);
-  M5.Lcd.setCursor(20, 40);
-  M5.Lcd.printf("SGP30 waking...");
-  // SGP30が動作するまで15秒起動中の表示を出す
-  for (int i = 0; i < 15; i++) {
-    M5.Lcd.printf(".");
-    delay(1000);
-  }
-  // BMP280 が初期化できなかったとき、エラーを返す
-  while (!bme.begin(0x76)) {
-    //M5.Lcd.println("Could not find a valid BMP280 sensor, check wiring!");
-  }
-
-  // スプライトの作成
-  sprite.setColorDepth(8);
-  sprite.setTextFont(4);
-  sprite.setTextSize(1);
-  sprite.createSprite(M5.Lcd.width(), M5.Lcd.height());
-
-}
-void loop() {  
+void loop() {
   // 画面輝度調整の必須処理
   M5.update();
 
@@ -422,10 +443,10 @@ void loop() {
   // 生成した設定情報JSONをSDカードに出力する
   saveConfig();
 
-  // 1秒経過ごとにログを保存
+  // 1分経過ごとにログを保存
   unsigned long lapsedTime = millis();
-  Serial.print(lapsedTime); Serial.print("\n");
-  if(lapsedTime > setCsvWroteTime + 1000){
+  Serial.println(lapsedTime);
+  if (lapsedTime > setCsvWroteTime + 60000) {
     saveLog();
     setCsvWroteTime = lapsedTime;
   }
