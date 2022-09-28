@@ -1,3 +1,4 @@
+#include "ssid.h"
 #include <M5Stack.h>
 #include <WiFi.h>
 #include <Adafruit_SGP30.h>
@@ -90,8 +91,8 @@ unsigned char tmpBacklightCnt;
 bool tmpBedroomModeFlg;
 
 // Wi-Fi 接続に必要な文字列
-const char* ssid = "Eievui";
-const char* password = "2446c7a7d0dbd";
+const char* ssid = "00000";
+const char* password = "00000";
 
 int setCsvWroteTime = 0;
 
@@ -295,26 +296,26 @@ void saveConfig() {
 }
 
 // 計測した値をSDカードに保存する関数
-void measureValuesOutput() {
+void saveLog() {
   bool getTime = getLocalTime(&timeInfo);
   Serial.print(getTime); Serial.print("\n");
-  String measureDay = makeLocalDay(timeInfo);
-  String measureTime = makeLocalTime(timeInfo);
+  String measureDay = getDateString(timeInfo);
+  String measureTime = getTimeString(timeInfo);
   File measureValues = SD.open("/measure_values.csv", FILE_APPEND);
   measureValues.println(measureDay + "," + measureTime + "," + sgp.eCO2 + "," + sgp.TVOC + "," + tmp + "," + hum + "," + pressure + "\n");
   Serial.print(measureDay + "," + measureTime + "," + sgp.eCO2 + "," + sgp.TVOC + "," + tmp + "," + hum + "," + pressure + "\n");
   measureValues.close();
 }
 
-// 月と日を合成する関数
-String makeLocalDay(struct tm timeinfo) {
+// tm オブジェクトから日付文字列 (例: "12/1") を返す関数
+String getDateString(struct tm timeinfo) {
   int month = timeinfo.tm_mon + 1;
   String dateString = month + "/" + timeinfo.tm_mday;
   return dateString;
 }
 
 // tm オブジェクトから時刻文字列 (例: "00:00") を返す関数
-String makeLocalTime(struct tm timeinfo) {
+String getTimeString(struct tm timeinfo) {
   String timeString = timeinfo.tm_hour + ":" + timeinfo.tm_min;
   return timeString;
 }
@@ -429,7 +430,7 @@ void loop() {
   unsigned long lapsedTime = millis();
   Serial.print(lapsedTime); Serial.print("\n");
   if(lapsedTime > setCsvWroteTime + 1000){
-    measureValuesOutput();
+    saveLog();
     setCsvWroteTime = lapsedTime;
   }
 }
