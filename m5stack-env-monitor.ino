@@ -39,23 +39,23 @@ const int cautionPoint = 1500;
 int discomfortIndex = 0;
 
 // 24bitカラーの構造体
-struct fullColor {
+struct RGB {
   int r;
   int g;
   int b;
 };
 
-struct colorData {
+struct StatusColor {
   String name;
-  struct fullColor;
+  struct RGB color;
 };
 
-struct colorData eco2Color = {
+struct StatusColor Eco2Color[2] = {
   {"colorAttention", 255, 215, 0},
   {"colorCaution", 255, 69, 0}
 };
 
-struct colorData discomfortColor = {
+struct StatusColor DiscomfortColor[6] = {
   {"colorCold", 0, 0, 205},
   {"colorChilly", 135, 206, 235},
   {"colorComfort", 0, 0, 0},
@@ -64,29 +64,6 @@ struct colorData discomfortColor = {
   {"colorBoiling", 255,127, 80}
 };
 
-// 注意のLED色
-fullColor colorAttention = {255, 215, 0};
-
-// 警告のLED色
-fullColor colorCaution = {255, 69, 0};
-
-// 寒いときの画面背景色
-fullColor colorCold = {0, 0, 205};
-
-// 肌寒いときの画面背景色
-fullColor colorChilly = {135, 206, 235};
-
-// 快適なときの画面背景色
-fullColor colorComfort = {0, 0, 0};
-
-// やや暑いときの画面背景色
-fullColor colorWarm = {240, 230, 140};
-
-// 暑いときの画面背景色
-fullColor colorHot = {255, 165, 0};
-
-// 暑くてたまらないときの画面背景色
-fullColor colorBoiling {255, 127, 80};
 
 // 不快指数状況の初期値
 String discomfortStatus = "comfort";
@@ -249,22 +226,22 @@ void updateScreen() {
     // 不快指数の画面表示
     if (discomfortIndex < 55 && discomfortStatus != "cold") {
       discomfortStatus = "cold";
-      setSpriteBackColor(colorCold);
+      setSpriteBackColor(DiscomfortColor[0]);
     } else if (discomfortIndex < 60 && discomfortIndex >= 55 && discomfortStatus != "chilly") {
       discomfortStatus = "chilly";
-      setSpriteBackColor(colorChilly);
+      setSpriteBackColor(DiscomfortColor[1]);
     } else if (discomfortIndex < 75 && discomfortIndex >= 60 && discomfortStatus != "comfort") {
       discomfortStatus = "comfort";
-      setSpriteBackColor(colorComfort);
+      setSpriteBackColor(DiscomfortColor[2]);
     } else if (discomfortIndex < 80 && discomfortIndex >= 75 && discomfortStatus != "warm") {
       discomfortStatus = "warm";
-      setSpriteBackColor(colorWarm);
+      setSpriteBackColor(DiscomfortColor[3]);
     } else if (discomfortIndex < 85 && discomfortIndex >= 80 && discomfortStatus != "hot") {
       discomfortStatus = "hot";
-      setSpriteBackColor(colorHot);
+      setSpriteBackColor(DiscomfortColor[4]);
     } else if (discomfortIndex >= 85 && discomfortStatus != "boiling") {
       discomfortStatus = "boiling";
-      setSpriteBackColor(colorBoiling);
+      setSpriteBackColor(DiscomfortColor[5]);
     }
   }
 
@@ -309,8 +286,8 @@ void setSpriteMeasurement(int tvoc, int eco2, float pressure, float tmp, float h
 }
 
 // 構造体を参照して背景色をスプライトに入力する関数
-void setSpriteBackColor(struct fullColor structure) {
-  sprite.fillScreen(getColor(structure.r, structure.g, structure.b));
+void setSpriteBackColor(struct StatusColor statusColor) {
+  sprite.fillScreen(getColor(statusColor.color.r, statusColor.color.g, statusColor.color.b));
 }
 
 // LEDを点灯する関数
@@ -322,14 +299,14 @@ void updateLedBar() {
   } else {
     if (sgp.eCO2 > cautionPoint) {
       // 警告
-      setLedColor(colorCaution.r, colorCaution.g, colorCaution.b, 50);
+      setLedColor(Eco2Color[1].color.r, Eco2Color[1].color.g, Eco2Color[1].color.b, 50);
       if (!cautionFlg) {
         playMP3("/1500ppm.mp3");
         cautionFlg = true;
       }
     } else if (sgp.eCO2 > attentionPoint) {
       // 注意
-      setLedColor(colorAttention.r, colorAttention.g, colorAttention.b, 25);
+      setLedColor(Eco2Color[0].color.r, Eco2Color[0].color.g, Eco2Color[0].color.b, 25);
       if (!attentionFlg) {
         playMP3("/1000ppm.mp3");
         attentionFlg = true;
