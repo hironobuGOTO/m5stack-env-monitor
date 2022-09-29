@@ -15,7 +15,7 @@ Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ80
 #include <Adafruit_BMP280.h>
 #include "Adafruit_Sensor.h"
 
-Adafruit_BMP280 bme;
+Adafruit_BMP280 bmp280;
 SHT3X sht30;
 
 // ESP8266Audioライブラリ
@@ -25,15 +25,29 @@ SHT3X sht30;
 
 #include <ArduinoJson.h>
 
-float tmp = 0.0;
-float hum = 0.0;
-float pressure = 0.0;
+// sht30 で計測した値の構造体
+struct measureValue {
+  String name;
+  float value;
+};
+
+struct measureValue latestSensorValue[3] = {
+  {"temperature", 0.0},
+  {"humidity", 0.0},
+  {"pressure", 0.0}
+};
+
+struct eco2threshold {
+  const int THRESHOLD;
+};
 
 // 注意の閾値
-const int attentionPoint = 1000;
+struct eco2threshold attention;
+attention.threshold = 1000;
 
 // 警告の閾値
-const int cautionPoint = 1500;
+struct eco2threshold caution;
+caution.threshold = 1500;
 
 // 不快指数
 int discomfortIndex = 0;
@@ -61,7 +75,7 @@ struct StatusColor DiscomfortColor[6] = {
   {"colorComfort", 0, 0, 0},
   {"colorWarm", 240, 230, 140},
   {"colorHot", 255, 165, 0},
-  {"colorBoiling", 255,127, 80}
+  {"colorBoiling", 255, 127, 80}
 };
 
 
@@ -88,7 +102,7 @@ bool tmpBedroomModeFlg;
 int setCsvWroteTime = 0;
 
 // 時間をtm型で取得する変数
-struct tm timeInfo;
+struct tm currentDateTime;
 
 // Sprite クラスのインスタンス化
 TFT_eSprite sprite = TFT_eSprite(&M5.Lcd);
@@ -97,6 +111,13 @@ void setup() {
   // LCD, SD, UART, I2C をそれぞれ初期化するかを指定して初期化する
   M5.begin(true, true, true, true);
   M5.Power.begin();
+  //M5Stack の画面初期化
+  M5.Lcd.fillScreen(TFT_BLACK);
+  M5.Lcd.setTextFont(4);
+  M5.Lcd.setTextSize(1);
+  M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
+  M5.Lcd.setTextDatum(TL_DATUM);
+  M5.Lcd.setCursor(20, 40);
   // SDカードが初期化できなかったとき、エラーを返す
   if (!SD.begin()) {
     M5.Lcd.println("Card failed, or not present");
@@ -144,13 +165,7 @@ void setup() {
   sgp.setIAQBaseline(eco2_base, tvoc_base);
   // M5Stack側面LEDの起動
   pixels.begin();
-  //M5Stack の画面初期化
   M5.Lcd.fillScreen(TFT_BLACK);
-  M5.Lcd.setTextFont(4);
-  M5.Lcd.setTextSize(1);
-  M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
-  M5.Lcd.setTextDatum(TL_DATUM);
-  M5.Lcd.setCursor(20, 40);
   M5.Lcd.printf("SGP30 waking...");
   // SGP30が動作するまで15秒起動中の表示を出す
   for (int i = 0; i < 15; i++) {
@@ -158,7 +173,7 @@ void setup() {
     delay(1000);
   }
   // BMP280 が初期化できなかったとき、エラーを返す
-  while (!bme.begin(0x76)) {
+  while (!bmp280.begin(0x76)) {
     M5.Lcd.println("Could not find a valid BMP280 sensor, check wiring!");
   }
 
@@ -173,13 +188,13 @@ void setup() {
 //温度、相対湿度から絶対湿度を計算する関数
 uint32_t getAbsoluteHumidity(float temperature, float humidity) {
   // approximation formula from Sensirion SGP30 Driver Integration chapter 3.15
-  const float absoluteHumidity = 216.7f
+  const float ABSOLUTE_HUMIDITY = 216.7f
                                  * ((humidity / 100.0f) * 6.112f
                                     * exp((17.62f * temperature) / (243.12f + temperature))
                                     / (273.15f + temperature)); // [g/m^3]
-  const uint32_t absoluteHumidityScaled = static_cast<uint32_t>(1000.0f
-                                          * absoluteHumidity); // [mg/m^3]
-  return absoluteHumidityScaled;
+  const uint32_t ABSOLUTE_HUMIDITY_SCALED = static_cast<uint32_t>(1000.0f
+                                          * ABSOLUTE_HUMIDITY); // [mg/m^3]
+  return ABSOLUTE_HUMIDITY_SCALED;
 }
 
 // LEDの色と輝度を操作する関数
@@ -199,21 +214,21 @@ uint16_t getColor(uint8_t red, uint8_t green, uint8_t blue) {
 // 各数値を計測する関数
 void measureSensorValues() {
   //気圧を測定 (hPa に変換)
-  pressure = bme.readPressure() / 100;
+  pressure = bmp280.readPressure() / 100;
   //sht30 (温湿度センサー) にて、温湿度を測定
   if (sht30.get() == 0) {
-    tmp = sht30.cTemp;
-    hum = sht30.humidity;
+    latestSensorValue[0].value = sht30.cTemp;
+    latestSensorValue[1].value = sht30.humidity;
   }
   //絶対湿度をSGP30にセット
-  sgp.setHumidity(getAbsoluteHumidity(tmp, hum));
+  sgp.setHumidity(getAbsoluteHumidity(latestSensorValue[0].value, latestSensorValue[1].value));
   //eCO2 TVOC読込に失敗したときのエラー表示
   if (! sgp.IAQmeasure()) {
     Serial.println("Measurement failed");
     while (1);
   }
   // 不快指数の計算
-  discomfortIndex = ((0.81 * tmp) + ((0.01 * hum) * ((0.99 * tmp) - 14.3)) + 46.3);
+  discomfortIndex = ((0.81 * latestSensorValue[0].value) + ((0.01 * latestSensorValue[1].value) * ((0.99 * latestSensorValue[0].value) - 14.3)) + 46.3);
 }
 
 // 画面表示する関数
@@ -246,7 +261,7 @@ void updateScreen() {
   }
 
   // 計測結果をスプライトに入力
-  setSpriteMeasurement(sgp.TVOC, sgp.eCO2, pressure, tmp, hum);
+  setSpriteMeasurement(sgp.TVOC, sgp.eCO2, latestSensorValue[2].value, latestSensorValue[0].value, latestSensorValue[1].value);
 
   // スプライトを画面に表示
   sprite.pushSprite(0, 0);
@@ -274,15 +289,17 @@ void adjustBacklight(int i) {
 }
 
 // 計測結果をスプライトに入力する関数
-void setSpriteMeasurement(int tvoc, int eco2, float pressure, float tmp, float hum) {
+void setSpriteMeasurement(int tvoc, int eco2, float pressure, float temperature, float humidity) {
   sprite.setCursor(0, 40);
   sprite.printf("TVOC: %4d ppb ", tvoc);
+  sprite.setTextSize(1);
   sprite.setCursor(0, 80);
   sprite.printf("eCO2: %4d ppm ", eco2);
+  sprite.setTextSize(1);
   sprite.setCursor(0, 160);
   sprite.printf("Pres.: %4.1f hPa", pressure);
   sprite.setCursor(0, 200);
-  sprite.printf("Temp: %2.1f 'C %2.1f %c ", tmp, hum, '%');
+  sprite.printf("Temp: %2.1f 'C %2.1f %c ", temperature, humidity, '%');
 }
 
 // 構造体を参照して背景色をスプライトに入力する関数
@@ -297,18 +314,18 @@ void updateLedBar() {
     // フラグが立っているときのLED消灯処理
     setLedColor(0, 0, 0, 0);
   } else {
-    if (sgp.eCO2 > cautionPoint) {
+    if (sgp.eCO2 > caution.threshold) {
       // 警告
       setLedColor(Eco2Color[1].color.r, Eco2Color[1].color.g, Eco2Color[1].color.b, 50);
       if (!cautionFlg) {
-        playMP3("/1500ppm.mp3");
+        playMp3("/1500ppm.mp3");
         cautionFlg = true;
       }
-    } else if (sgp.eCO2 > attentionPoint) {
+    } else if (sgp.eCO2 > attention.threshold) {
       // 注意
       setLedColor(Eco2Color[0].color.r, Eco2Color[0].color.g, Eco2Color[0].color.b, 25);
       if (!attentionFlg) {
-        playMP3("/1000ppm.mp3");
+        playMp3("/1000ppm.mp3");
         attentionFlg = true;
         cautionFlg = false;
       }
@@ -322,12 +339,12 @@ void updateLedBar() {
 }
 
 // MP3ファイルを再生する関数
-void playMP3(char *filename) {
+void playMp3(char *filename) {
   // mp3ファイルの変数定義
   AudioGeneratorMP3 *mp3;
   AudioFileSourceSD *file;
   AudioOutputI2S *out;
-  
+
   file = new AudioFileSourceSD(filename);
   out = new AudioOutputI2S(0, 1);
   out->SetOutputModeMono(true);
@@ -370,24 +387,24 @@ void saveConfig() {
 
 // 計測した値をSDカードに保存する関数
 void saveLog() {
-  bool getTime = getLocalTime(&timeInfo);
-  String measureDay = getDateString(timeInfo);
-  String measureTime = getTimeString(timeInfo);
+  bool getTime = getLocalTime(&currentDateTime);
+  String measureDay = getDateString(currentDateTime);
+  String measureTime = getTimeString(currentDateTime);
   File measureValues = SD.open("/measure_values.csv", FILE_APPEND);
-  measureValues.print(measureDay + "," + measureTime + "," + sgp.eCO2 + "," + sgp.TVOC + "," + tmp + "," + hum + "," + pressure + "\n");
+  measureValues.print(measureDay + "," + measureTime + "," + sgp.eCO2 + "," + sgp.TVOC + "," + latestSensorValue[0].value + "," + latestSensorValue[1].value + "," + latestSensorValue[2].value + "\n");
   measureValues.close();
 }
 
 // tm オブジェクトから日付文字列 (例: "12/1") を返す関数
-String getDateString(struct tm timeinfo) {
-  int month = timeinfo.tm_mon + 1;
-  String dateString = String(month) + "/" + String(timeinfo.tm_mday);
+String getDateString(struct tm currentDateTime) {
+  int month = currentDateTime.tm_mon + 1;
+  String dateString = String(month) + "/" + String(currentDateTime.tm_mday);
   return dateString;
 }
 
 // tm オブジェクトから時刻文字列 (例: "00:00") を返す関数
-String getTimeString(struct tm timeinfo) {
-  String timeString = String(timeinfo.tm_hour) + ":" + String(timeinfo.tm_min);
+String getTimeString(struct tm currentDateTime) {
+  String timeString = String(currentDateTime.tm_hour) + ":" + String(currentDateTime.tm_min);
   return timeString;
 }
 
