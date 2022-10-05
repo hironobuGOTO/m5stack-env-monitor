@@ -25,29 +25,19 @@ SHT3X sht30;
 
 #include <ArduinoJson.h>
 
-// sht30 で計測した値の構造体
-struct measureValue {
-  String name;
-  float value;
+// SHT30で計測した値の構造体
+struct SensorValue {
+  float temperature;
+  float humidity;
+  float pressure;
 };
 
-struct measureValue latestSensorValue[3] = {
-  {"temperature", 0.0},
-  {"humidity", 0.0},
-  {"pressure", 0.0}
+
+// SGP30で計測したeCO2濃度の閾値の構造体
+struct ReminderThreshold {
+  int attention;
+  int caution;
 };
-
-struct eco2threshold {
-  const int THRESHOLD;
-};
-
-// 注意の閾値
-struct eco2threshold attention;
-attention.threshold = 1000;
-
-// 警告の閾値
-struct eco2threshold caution;
-caution.threshold = 1500;
 
 // 不快指数
 int discomfortIndex = 0;
@@ -212,27 +202,27 @@ uint16_t getColor(uint8_t red, uint8_t green, uint8_t blue) {
 }
 
 // 各数値を計測する関数
-void measureSensorValues() {
+void measureSensorValues(struct SensorValue& latestSensorValue) {
   //気圧を測定 (hPa に変換)
-  pressure = bmp280.readPressure() / 100;
+  latestSensorValue.pressure = bmp280.readPressure() / 100;
   //sht30 (温湿度センサー) にて、温湿度を測定
   if (sht30.get() == 0) {
-    latestSensorValue[0].value = sht30.cTemp;
-    latestSensorValue[1].value = sht30.humidity;
+    latestSensorValue.temperature = sht30.cTemp;
+    latestSensorValue.humidity = sht30.humidity;
   }
   //絶対湿度をSGP30にセット
-  sgp.setHumidity(getAbsoluteHumidity(latestSensorValue[0].value, latestSensorValue[1].value));
+  sgp.setHumidity(getAbsoluteHumidity(latestSensorValue.temperature, latestSensorValue.humidity));
   //eCO2 TVOC読込に失敗したときのエラー表示
   if (! sgp.IAQmeasure()) {
     Serial.println("Measurement failed");
     while (1);
   }
   // 不快指数の計算
-  discomfortIndex = ((0.81 * latestSensorValue[0].value) + ((0.01 * latestSensorValue[1].value) * ((0.99 * latestSensorValue[0].value) - 14.3)) + 46.3);
+  discomfortIndex = ((0.81 * latestSensorValue.temperature) + ((0.01 * latestSensorValue.humidity) * ((0.99 * latestSensorValue.temperature) - 14.3)) + 46.3);
 }
 
 // 画面表示する関数
-void updateScreen() {
+void updateScreen(struct SensorValue latestSensorValue) {
   // Bボタンが押されたとき、色を黒にする
   if (bedroomModeFlg) {
     sprite.fillScreen(TFT_BLACK);
@@ -261,7 +251,7 @@ void updateScreen() {
   }
 
   // 計測結果をスプライトに入力
-  setSpriteMeasurement(sgp.TVOC, sgp.eCO2, latestSensorValue[2].value, latestSensorValue[0].value, latestSensorValue[1].value);
+  setSpriteMeasurement(sgp.TVOC, sgp.eCO2, latestSensorValue.pressure, latestSensorValue.temperature, latestSensorValue.humidity);
 
   // スプライトを画面に表示
   sprite.pushSprite(0, 0);
@@ -309,19 +299,20 @@ void setSpriteBackColor(struct StatusColor statusColor) {
 
 // LEDを点灯する関数
 void updateLedBar() {
+  struct ReminderThreshold eco2Threshold = {1000, 1500};
   // LEDの点灯処理
   if (bedroomModeFlg) {
     // フラグが立っているときのLED消灯処理
     setLedColor(0, 0, 0, 0);
   } else {
-    if (sgp.eCO2 > caution.threshold) {
+    if (sgp.eCO2 > eco2Threshold.caution) {
       // 警告
       setLedColor(Eco2Color[1].color.r, Eco2Color[1].color.g, Eco2Color[1].color.b, 50);
       if (!cautionFlg) {
         playMp3("/1500ppm.mp3");
         cautionFlg = true;
       }
-    } else if (sgp.eCO2 > attention.threshold) {
+    } else if (sgp.eCO2 > eco2Threshold.attention) {
       // 注意
       setLedColor(Eco2Color[0].color.r, Eco2Color[0].color.g, Eco2Color[0].color.b, 25);
       if (!attentionFlg) {
@@ -386,12 +377,12 @@ void saveConfig() {
 }
 
 // 計測した値をSDカードに保存する関数
-void saveLog() {
+void saveLog(struct SensorValue latestSensorValue) {
   bool getTime = getLocalTime(&currentDateTime);
   String measureDay = getDateString(currentDateTime);
   String measureTime = getTimeString(currentDateTime);
   File measureValues = SD.open("/measure_values.csv", FILE_APPEND);
-  measureValues.print(measureDay + "," + measureTime + "," + sgp.eCO2 + "," + sgp.TVOC + "," + latestSensorValue[0].value + "," + latestSensorValue[1].value + "," + latestSensorValue[2].value + "\n");
+  measureValues.print(measureDay + "," + measureTime + "," + sgp.eCO2 + "," + sgp.TVOC + "," + latestSensorValue.temperature + "," + latestSensorValue.humidity + "," + latestSensorValue.pressure + "\n");
   measureValues.close();
 }
 
@@ -413,10 +404,11 @@ void loop() {
   M5.update();
 
   // 計測
-  measureSensorValues();
+  struct SensorValue latestSensorValue = {0.0, 0.0, 0.0};
+  measureSensorValues(latestSensorValue);
 
   // 画面表示
-  updateScreen();
+  updateScreen(latestSensorValue);
 
   // ボタンで画面輝度調節
   if (M5.BtnA.wasPressed()) {
@@ -441,7 +433,7 @@ void loop() {
   unsigned long lapsedTime = millis();
   Serial.println(lapsedTime);
   if (lapsedTime > setCsvWroteTime + 60000) {
-    saveLog();
+    saveLog(latestSensorValue);
     setCsvWroteTime = lapsedTime;
   }
 }
