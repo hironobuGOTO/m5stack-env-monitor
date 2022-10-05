@@ -1,6 +1,7 @@
 #include "config.h"
 #include <M5Stack.h>
 #include <WiFi.h>
+#include <map>
 
 #include <Adafruit_NeoPixel.h>
 #define PIN 15
@@ -55,10 +56,9 @@ struct StatusColor {
 };
 
 // ECO2計測値の閾値を超えたときの警告色の定義
-struct StatusColor Eco2Color[2] = {
-  {"colorAttention", 255, 215, 0},
-  {"colorCaution", 255, 69, 0}
-};
+std::map<std::string, struct RGB> eco2Color;
+eco2Color["colorAttention"] = {255, 215, 0};
+eco2Color["colorCaution"] =  {255, 69, 0};
 
 // 不快指数が快適じゃないときの警告色の定義
 struct StatusColor DiscomfortColor[6] = {
@@ -75,6 +75,8 @@ String discomfortStatus = "comfort";
 
 // バックライトの輝度を操作する値 0〜5 (初期値は中央値)
 unsigned char backlightCnt = 2;
+// 変更があったときのみSDカードに保存するための一時退避所
+unsigned char tmpBacklightCnt;
 
 // 寝室モードかを確認するフラグ
 bool bedroomModeFlg = false;
@@ -82,9 +84,6 @@ bool bedroomModeFlg = false;
 // 二酸化炭素濃度が高まった後下がるまで喋らないようにするフラグ
 bool cautionFlg = false;
 bool attentionFlg = false;
-
-// 変更があったときのみSDカードに保存するための一時退避所
-unsigned char tmpBacklightCnt;
 
 // 寝室モードかを判別するフラグ
 bool tmpBedroomModeFlg;
@@ -165,7 +164,6 @@ void setup() {
   while (!bmp280.begin(0x76)) {
     M5.Lcd.println("Could not find a valid BMP280 sensor, check wiring!");
   }
-
   // スプライトの作成
   sprite.setColorDepth(8);
   sprite.setTextFont(4);
@@ -280,10 +278,8 @@ void adjustBacklight(int i) {
 void setSpriteMeasurement(int tvoc, int eco2, float pressure, float temperature, float humidity) {
   sprite.setCursor(0, 40);
   sprite.printf("TVOC: %4d ppb ", tvoc);
-  sprite.setTextSize(1);
   sprite.setCursor(0, 80);
   sprite.printf("eCO2: %4d ppm ", eco2);
-  sprite.setTextSize(1);
   sprite.setCursor(0, 160);
   sprite.printf("Pres.: %4.1f hPa", pressure);
   sprite.setCursor(0, 200);
@@ -302,17 +298,18 @@ void updateLedBar() {
   // 寝室モードのときのLED消灯処理
   if (bedroomModeFlg) {
     setLedColor(0, 0, 0, 0);
+    return ;
   } else {
     if (sgp.eCO2 > eco2Threshold.caution) {
       // 警告時のLED点灯と音声鳴動
-      setLedColor(Eco2Color[1].color.r, Eco2Color[1].color.g, Eco2Color[1].color.b, 50);
+      setLedColor(eco2Color["colorCaution"].r, eco2Color["colorCaution"].g, eco2Color["colorCaution"].b, 50);
       if (!cautionFlg) {
         playMp3("/1500ppm.mp3");
         cautionFlg = true;
       }
     } else if (sgp.eCO2 > eco2Threshold.attention) {
       // 注意時のLED点灯と音声鳴動
-      setLedColor(Eco2Color[0].color.r, Eco2Color[0].color.g, Eco2Color[0].color.b, 25);
+      setLedColor(eco2Color["colorAttention"].r, eco2Color["colorAttention"].g, eco2Color["colorAttention"].b, 25);
       if (!attentionFlg) {
         playMp3("/1000ppm.mp3");     
         attentionFlg = true;
@@ -349,7 +346,9 @@ void playMp3(char *filename) {
 // 生成したJSONをSDカードに出力する関数
 void saveConfig() {
   // 設定が変わったときのみ書き込む
-  if (tmpBacklightCnt != backlightCnt || tmpBedroomModeFlg != bedroomModeFlg) {
+  if ((tmpBacklightCnt == backlightCnt) && (tmpBedroomModeFlg == bedroomModeFlg)) {
+    return;
+  } else {
     // configFile の定義
     File configFile = SD.open("/config.txt", FILE_WRITE);
 
