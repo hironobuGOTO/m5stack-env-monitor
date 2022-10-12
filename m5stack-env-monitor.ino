@@ -55,10 +55,12 @@ struct StatusColor {
   struct RGB color;
 };
 
-// ECO2計測値の閾値を超えたときの警告色の定義
-std::map<std::string, struct RGB> eco2Color;
-eco2Color["colorAttention"] = {255, 215, 0};
-eco2Color["colorCaution"] =  {255, 69, 0};
+// eCO2計測値の閾値を超えたときの警告色の定義
+struct Eco2ThresholdColor {
+  RGB colorAttention;
+  RGB colorCaution;
+};
+
 
 // 不快指数が快適じゃないときの警告色の定義
 struct StatusColor DiscomfortColor[6] = {
@@ -302,20 +304,22 @@ void updateLedBar() {
   } else {
     if (sgp.eCO2 > eco2Threshold.caution) {
       // 警告時のLED点灯と音声鳴動
-      setLedColor(eco2Color["colorCaution"].r, eco2Color["colorCaution"].g, eco2Color["colorCaution"].b, 50);
+      struct RGB colorCaution = {255, 69, 0};
+      setLedColor(colorCaution.r, colorCaution.g, colorCaution.b, 50);
       if (!cautionFlg) {
         playMp3("/1500ppm.mp3");
         cautionFlg = true;
       }
     } else if (sgp.eCO2 > eco2Threshold.attention) {
       // 注意時のLED点灯と音声鳴動
-      setLedColor(eco2Color["colorAttention"].r, eco2Color["colorAttention"].g, eco2Color["colorAttention"].b, 25);
+      struct RGB colorAttention = {255, 215, 0};
+      setLedColor(colorAttention.r, colorAttention.g, colorAttention.b, 25);
       if (!attentionFlg) {
         playMp3("/1000ppm.mp3");     
         attentionFlg = true;
         cautionFlg = false;
       }
-    } else {
+    }  else {
       // 閾値以下のときのLED消灯処理
       setLedColor(0, 0, 0, 0);
       cautionFlg = false;
