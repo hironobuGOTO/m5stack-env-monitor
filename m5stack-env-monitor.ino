@@ -57,9 +57,12 @@ struct StatusColor {
 
 // eCO2計測値の閾値を超えたときの警告色の定義
 struct Eco2ThresholdColor {
-  RGB colorAttention;
-  RGB colorCaution;
+  RGB attention;
+  RGB caution;
 };
+struct Eco2ThresholdColor eco2ThresholdColor;
+eco2ThresholdColor.attension = {255, 215, 0};
+eco2ThresholdColor.caution = {255, 69, 0};
 
 
 // 不快指数が快適じゃないときの警告色の定義
@@ -304,16 +307,14 @@ void updateLedBar() {
   } else {
     if (sgp.eCO2 > eco2Threshold.caution) {
       // 警告時のLED点灯と音声鳴動
-      struct RGB colorCaution = {255, 69, 0};
-      setLedColor(colorCaution.r, colorCaution.g, colorCaution.b, 50);
+      setLedColor(eco2ThresholdColor.caution, 50);
       if (!cautionFlg) {
         playMp3("/1500ppm.mp3");
         cautionFlg = true;
       }
     } else if (sgp.eCO2 > eco2Threshold.attention) {
       // 注意時のLED点灯と音声鳴動
-      struct RGB colorAttention = {255, 215, 0};
-      setLedColor(colorAttention.r, colorAttention.g, colorAttention.b, 25);
+      setLedColor(eco2ThresholdColor.attention, 25);
       if (!attentionFlg) {
         playMp3("/1000ppm.mp3");     
         attentionFlg = true;
