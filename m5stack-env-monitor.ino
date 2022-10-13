@@ -29,6 +29,9 @@ uint16_t tvoc_base = 40910; //TVOC baseline仮設定値
 // 設定値をJSONに書き出す際に必要なライブラリ
 #include <ArduinoJson.h>
 
+// 棒グラフを生成する配列をキューで処理するためのライブラリ
+#include <cppQueue.h>
+
 // SHT30で計測した値の構造体
 struct SensorValue {
   float temperature;
@@ -49,12 +52,6 @@ struct RGB {
   int r;
   int g;
   int b;
-};
-
-// 状態がもつ色の構造体の定義
-struct StatusColor {
-  String name;
-  struct RGB color;
 };
 
 // eCO2計測値の閾値を超えたときの警告色の構造体を定義
@@ -86,6 +83,9 @@ unsigned char backlightCnt = 2;
 // 変更があったときのみSDカードに保存するための一時退避所 (loop() の前後で保持するのでグローバルで保持)
 unsigned char tmpBacklightCnt;
 
+// 時間をtm型で取得する変数
+struct tm currentDateTime;
+
 // 寝室モードかを確認するフラグ(loop() の前後で保持するのでグローバルで保持)
 bool bedroomModeFlg = false;
 
@@ -101,6 +101,9 @@ int setCsvWroteTime = 0;
 
 // Sprite クラスのインスタンス化
 TFT_eSprite sprite = TFT_eSprite(&M5.Lcd);
+
+// eCO2を棒グラフにするための配列
+cppQueue eco2GraphList(size_rec, 23, FIFO, true);// (TODO: size_recの算出の仕方)
 
 void setup() {
   // LCD, SD, UART, I2C をそれぞれ初期化するかを指定して初期化する
@@ -164,7 +167,7 @@ void setup() {
   // M5Stack側面LEDの起動
   pixels.begin();
   // SGP30が動作するまで15秒起動中の表示を出す
-  M5.Lcd.printf("\nSGP30 waking");
+  M5.Lcd.printf("\n  SGP30 waking");
   for (int i = 0; i < 15; i++) {
     M5.Lcd.printf(".");
     delay(1000);
@@ -383,8 +386,6 @@ void saveConfig() {
 
 // 計測した値をSDカードに保存する関数
 void saveLog(struct SensorValue latestSensorValue) {
-  // 時間をtm型で取得する変数
-  struct tm currentDateTime;
   // ローカル時間を取得する
   bool getTime = getLocalTime(&currentDateTime);
   String measureDay = getDateString(currentDateTime);
@@ -406,6 +407,26 @@ String getDateString(struct tm currentDateTime) {
 String getTimeString(struct tm currentDateTime) {
   String timeString = String(currentDateTime.tm_hour) + ":" + String(currentDateTime.tm_min);
   return timeString;
+}
+
+// Queueライブラリを使ったリストにeCO2値を保存
+void setEco2GraphList () {
+  if (currentDateTime.tm_min != 0) {
+    return ;
+  } else {
+    eco2GraphList.push(sgp.eco2);
+    if (eco2GraphList.isFull()){
+      eco2GraphList.pop();
+    }
+  }
+}
+
+// Queueライブラリを使ったリストを参照し、棒グラフを作る
+void drawGraph () {
+  for (int i = 0; i < 23; i++){ 
+    int heightGraph = eco2GraphList.peekIdx(void * rec, i); //(TODO:peekIdxの引数の1つ目がなにかわかっていない)
+    //(TODO: グラフの描画処理)
+  }
 }
 
 void loop() {
@@ -444,4 +465,6 @@ void loop() {
     saveLog(latestSensorValue);
     setCsvWroteTime = lapsedTime;
   }
+
+  
 }
