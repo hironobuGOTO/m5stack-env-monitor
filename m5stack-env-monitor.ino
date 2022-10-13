@@ -37,10 +37,12 @@ struct SensorValue {
 };
 
 // SGP30で計測したeCO2濃度の閾値の構造体
-struct ReminderThreshold {
-  int attention;
-  int caution;
+struct Eco2Threshold {
+  int attention = 1000;
+  int caution = 1500;
 };
+//eCO2濃度の構造体変数の宣言
+Eco2Threshold eco2Threshold;
 
 // 24bitカラーの構造体
 struct RGB {
@@ -55,16 +57,16 @@ struct StatusColor {
   struct RGB color;
 };
 
-// eCO2計測値の閾値を超えたときの警告色の定義
+// eCO2計測値の閾値を超えたときの警告色の構造体を定義
 struct Eco2ThresholdColor {
   RGB attention = {255, 215, 0};
   RGB caution = {255, 69, 0};
   RGB normal = {0, 0, 0};
 };
-
+// eCO2用警告色の構造体変数の宣言
 Eco2ThresholdColor eco2ThresholdColor;
 
-// 不快指数が快適じゃないときの警告色の定義
+// 不快指数が快適じゃないときの警告色の構造体を定義
 struct DiscomfortColor {
   RGB cold = {0, 0, 205};
   RGB chilly = {135, 206, 235};
@@ -73,28 +75,28 @@ struct DiscomfortColor {
   RGB hot = {255, 165, 0};
   RGB boiling = {255, 127, 80};
 };
-
+// 不快指数用警告色の構造体変数の宣言
 DiscomfortColor discomfortColor;
 
 // 不快指数の定義 (これの状態が変化したときに描画を変えるため、グローバルで保持)
 String discomfortStatus = "comfort";
 
-// バックライトの輝度を操作する値 0〜5 (初期値は中央値)
+// バックライトの輝度を操作する値 0〜5 (初期値は中央値, loop() の前後で保持するのでグローバルで保持)
 unsigned char backlightCnt = 2;
-// 変更があったときのみSDカードに保存するための一時退避所
+// 変更があったときのみSDカードに保存するための一時退避所 (loop() の前後で保持するのでグローバルで保持)
 unsigned char tmpBacklightCnt;
 
-// 寝室モードかを確認するフラグ
+// 寝室モードかを確認するフラグ(loop() の前後で保持するのでグローバルで保持)
 bool bedroomModeFlg = false;
 
-// 二酸化炭素濃度が高まった後下がるまで喋らないようにするフラグ
+// 二酸化炭素濃度が高まった後下がるまで喋らないようにするフラグ(loop() の前後で保持するのでグローバルで保持)
 bool cautionFlg = false;
 bool attentionFlg = false;
 
-// 寝室モードかを判別するフラグ
+// 寝室モードかを判別するフラグ(loop() の前後で保持するのでグローバルで保持)
 bool tmpBedroomModeFlg;
 
-// 最後にCSVに出力した時間を保管しておく変数
+// 最後にCSVに出力した時間を保管しておく変数 (loop() の前後で保持するのでグローバルで保持)
 int setCsvWroteTime = 0;
 
 // Sprite クラスのインスタンス化
@@ -111,6 +113,7 @@ void setup() {
   M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
   M5.Lcd.setTextDatum(TL_DATUM);
   M5.Lcd.setCursor(20, 40);
+  
   // SDカードが初期化できなかったとき、エラーを返す
   if (!SD.begin()) {
     M5.Lcd.println("Card failed, or not present");
@@ -175,10 +178,6 @@ void setup() {
   sprite.setTextFont(4);
   sprite.setTextSize(1);
   sprite.createSprite(M5.Lcd.width(), M5.Lcd.height());
-
-  Eco2ThresholdColor eco2ThresholdColor;
-  eco2ThresholdColor.attention = {255, 215, 0};
-  eco2ThresholdColor.caution = {255, 69, 0};
 }
 
 //温度、相対湿度から絶対湿度を計算する関数
@@ -303,7 +302,6 @@ void setSpriteBackColor(RGB rgb) {
 
 // LEDを点灯する関数
 void updateLedBar() {
-  struct ReminderThreshold eco2Threshold = {1000, 1500};
   // LEDの点灯処理
   // 寝室モードのときのLED消灯処理
   if (bedroomModeFlg) {
