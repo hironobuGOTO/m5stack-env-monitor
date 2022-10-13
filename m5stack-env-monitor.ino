@@ -57,23 +57,24 @@ struct StatusColor {
 
 // eCO2計測値の閾値を超えたときの警告色の定義
 struct Eco2ThresholdColor {
-  RGB attention;
-  RGB caution;
+  RGB attention = {255, 215, 0};
+  RGB caution = {255, 69, 0};
+  RGB normal = {0, 0, 0};
 };
-struct Eco2ThresholdColor eco2ThresholdColor;
-eco2ThresholdColor.attension = {255, 215, 0};
-eco2ThresholdColor.caution = {255, 69, 0};
 
+Eco2ThresholdColor eco2ThresholdColor;
 
 // 不快指数が快適じゃないときの警告色の定義
-struct StatusColor DiscomfortColor[6] = {
-  {"colorCold", 0, 0, 205},
-  {"colorChilly", 135, 206, 235},
-  {"colorComfort", 0, 0, 0},
-  {"colorWarm", 240, 230, 140},
-  {"colorHot", 255, 165, 0},
-  {"colorBoiling", 255, 127, 80}
+struct DiscomfortColor {
+  RGB cold = {0, 0, 205};
+  RGB chilly = {135, 206, 235};
+  RGB comfort = {0, 0, 0};
+  RGB warm = {240, 230, 140};
+  RGB hot = {255, 165, 0};
+  RGB boiling = {255, 127, 80};
 };
+
+DiscomfortColor discomfortColor;
 
 // 不快指数の定義 (これの状態が変化したときに描画を変えるため、グローバルで保持)
 String discomfortStatus = "comfort";
@@ -174,6 +175,10 @@ void setup() {
   sprite.setTextFont(4);
   sprite.setTextSize(1);
   sprite.createSprite(M5.Lcd.width(), M5.Lcd.height());
+
+  Eco2ThresholdColor eco2ThresholdColor;
+  eco2ThresholdColor.attention = {255, 215, 0};
+  eco2ThresholdColor.caution = {255, 69, 0};
 }
 
 //温度、相対湿度から絶対湿度を計算する関数
@@ -189,9 +194,9 @@ uint32_t getAbsoluteHumidity(float temperature, float humidity) {
 }
 
 // LEDの色と輝度を操作する関数
-void setLedColor(int r, int g, int b, int brightness) {
+void setLedColor(RGB rgb, int brightness) {
   for (int i = 0; i < NUMPIXELS; i++) {
-    pixels.setPixelColor(i, pixels.Color(r, g, b));
+    pixels.setPixelColor(i, pixels.Color(rgb.r, rgb.g, rgb.b));
     pixels.setBrightness(brightness);
     pixels.show();
   }
@@ -232,22 +237,22 @@ void updateScreen(struct SensorValue latestSensorValue) {
     // 不快指数の画面表示
     if (discomfortIndex < 55 && discomfortStatus != "cold") {
       discomfortStatus = "cold";
-      setSpriteBackColor(DiscomfortColor[0]);
+      setSpriteBackColor(discomfortColor.cold);
     } else if (discomfortIndex < 60 && discomfortIndex >= 55 && discomfortStatus != "chilly") {
       discomfortStatus = "chilly";
-      setSpriteBackColor(DiscomfortColor[1]);
+      setSpriteBackColor(discomfortColor.chilly);
     } else if (discomfortIndex < 75 && discomfortIndex >= 60 && discomfortStatus != "comfort") {
       discomfortStatus = "comfort";
-      setSpriteBackColor(DiscomfortColor[2]);
+      setSpriteBackColor(discomfortColor.comfort);
     } else if (discomfortIndex < 80 && discomfortIndex >= 75 && discomfortStatus != "warm") {
       discomfortStatus = "warm";
-      setSpriteBackColor(DiscomfortColor[3]);
+      setSpriteBackColor(discomfortColor.warm);
     } else if (discomfortIndex < 85 && discomfortIndex >= 80 && discomfortStatus != "hot") {
       discomfortStatus = "hot";
-      setSpriteBackColor(DiscomfortColor[4]);
+      setSpriteBackColor(discomfortColor.hot);
     } else if (discomfortIndex >= 85 && discomfortStatus != "boiling") {
       discomfortStatus = "boiling";
-      setSpriteBackColor(DiscomfortColor[5]);
+      setSpriteBackColor(discomfortColor.boiling);
     }
   }
 
@@ -292,8 +297,8 @@ void setSpriteMeasurement(int tvoc, int eco2, float pressure, float temperature,
 }
 
 // 構造体を参照して背景色をスプライトに入力する関数
-void setSpriteBackColor(struct StatusColor statusColor) {
-  sprite.fillScreen(getColor(statusColor.color.r, statusColor.color.g, statusColor.color.b));
+void setSpriteBackColor(RGB rgb) {
+  sprite.fillScreen(getColor(rgb.r, rgb.g, rgb.b));
 }
 
 // LEDを点灯する関数
@@ -302,7 +307,7 @@ void updateLedBar() {
   // LEDの点灯処理
   // 寝室モードのときのLED消灯処理
   if (bedroomModeFlg) {
-    setLedColor(0, 0, 0, 0);
+    setLedColor(eco2ThresholdColor.normal, 0);
     return ;
   } else {
     if (sgp.eCO2 > eco2Threshold.caution) {
@@ -322,7 +327,7 @@ void updateLedBar() {
       }
     }  else {
       // 閾値以下のときのLED消灯処理
-      setLedColor(0, 0, 0, 0);
+      setLedColor(eco2ThresholdColor.normal, 0);
       cautionFlg = false;
       attentionFlg = false;
     }
