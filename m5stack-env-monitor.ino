@@ -103,7 +103,7 @@ int setCsvWroteTime = 0;
 TFT_eSprite sprite = TFT_eSprite(&M5.Lcd);
 
 // eCO2を棒グラフにするための配列
-cppQueue eco2GraphList(sizeof(int), 23, FIFO, true);
+cppQueue eco2GraphValueList(sizeof(int), 23, FIFO, true);
 
 void setup() {
   // LCD, SD, UART, I2C をそれぞれ初期化するかを指定して初期化する
@@ -227,6 +227,18 @@ void measureSensorValues(struct SensorValue& latestSensorValue) {
   }
 }
 
+// Queueライブラリを使ったリストにeCO2値を保存
+void setEco2GraphValueList () {
+  /*
+  if (currentDateTime.tm_min != 0) {
+    return ;
+  } else {
+  */
+    bool pushIndex = eco2GraphValueList.push(&sgp.eCO2);
+    Serial.print("pushIndex "); Serial.print(pushIndex); Serial.print("\n");
+  //}
+}
+
 // 画面表示する関数
 void updateScreen(struct SensorValue latestSensorValue) {
   // Bボタンが押されたとき、色を黒にする
@@ -261,12 +273,29 @@ void updateScreen(struct SensorValue latestSensorValue) {
   // 計測結果をスプライトに入力
   setSpriteMeasurement(sgp.TVOC, sgp.eCO2, latestSensorValue.pressure, latestSensorValue.temperature, latestSensorValue.humidity);
 
+  // 過去のキューに入れたeCO2値をグラフに描写
+  for (int i = 23; i > 0; i--){ 
+    int eco2Value = 0;
+    int graphHeightEco2 = 0;
+    bool peekIndex = eco2GraphValueList.peekIdx(&eco2Value, i); 
+    //Serial.print("peekIndex "); Serial.print(peekIndex); Serial.print("\n");
+    if (eco2Value > 1500) {
+      graphHeightEco2 = 50;
+    } else {
+      graphHeightEco2 = map(eco2Value, 0, 1500, 1, 50);
+    }
+    sprite.fillRect((i * 13), (240 - graphHeightEco2), 13, graphHeightEco2, TFT_YELLOW);
+  }
+  // 現在のeCO2値をグラフに描写
+  int graphHeightEco2 = map((int)sgp.eCO2, 0, 1500, 1, 50);
+  sprite.fillRect(299, (240 - graphHeightEco2), 21, graphHeightEco2, TFT_YELLOW);
+
   // スプライトを画面に表示
   sprite.pushSprite(0, 0);
 
   // eCO2とTVOCの値をシリアルモニタに通信する
-  Serial.print("eCO2 "); Serial.print(sgp.eCO2); Serial.print("\t");
-  Serial.print("TVOC "); Serial.print(sgp.TVOC); Serial.print("\n");
+  //Serial.print("eCO2 "); Serial.print(sgp.eCO2); Serial.print("\t");
+  //Serial.print("TVOC "); Serial.print(sgp.TVOC); Serial.print("\n");
   // 寝室モードのとき輝度を落とす
   if (bedroomModeFlg) {
     M5.Lcd.setBrightness(5);
@@ -409,31 +438,22 @@ String getTimeString(struct tm currentDateTime) {
   return timeString;
 }
 
-// Queueライブラリを使ったリストにeCO2値を保存
-void setEco2GraphList () {
-  if (currentDateTime.tm_min != 0) {
-    return ;
-  } else {
-    eco2GraphList.push(&sgp.eCO2);
-  }
-}
-
-// Queueライブラリを使ったリストを参照し、棒グラフを作る
-void drawGraph () {
-  for (int i = 23; i > 0; i--){ 
-    int eco2Value = 0;
-    eco2GraphList.peekIdx(&eco2Value, i); 
-    int graphHeightEco2 = map(eco2Value, 400, 5000, 1, 100);
-    // (TODO グラフの描写)
-  }
-}
-
 void loop() {
   // 画面輝度調整の必須処理
   M5.update();
   // 計測
   struct SensorValue latestSensorValue = {0.0, 0.0, 0.0};
   measureSensorValues(latestSensorValue);
+
+  setEco2GraphValueList();
+
+  // 1分経過ごとにログを保存
+  unsigned long lapsedTime = millis();
+  Serial.println(lapsedTime);
+  if (lapsedTime > setCsvWroteTime + 60000) {
+    saveLog(latestSensorValue);
+    setCsvWroteTime = lapsedTime;
+  }
 
   // 画面表示
   updateScreen(latestSensorValue);
@@ -456,14 +476,5 @@ void loop() {
 
   // 生成した設定情報JSONをSDカードに出力する
   saveConfig();
-
-  // 1分経過ごとにログを保存
-  unsigned long lapsedTime = millis();
-  Serial.println(lapsedTime);
-  if (lapsedTime > setCsvWroteTime + 60000) {
-    saveLog(latestSensorValue);
-    setCsvWroteTime = lapsedTime;
-  }
-
   
 }
