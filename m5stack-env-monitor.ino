@@ -103,7 +103,7 @@ int setCsvWroteTime = 0;
 TFT_eSprite sprite = TFT_eSprite(&M5.Lcd);
 
 // eCO2を棒グラフにするための配列
-cppQueue eco2GraphList(size_rec, 23, FIFO, true);// (TODO: size_recの算出の仕方)
+cppQueue eco2GraphList(sizeof(int), 23, FIFO, true);
 
 void setup() {
   // LCD, SD, UART, I2C をそれぞれ初期化するかを指定して初期化する
@@ -288,14 +288,14 @@ void adjustBacklight(int i) {
 
 // 計測結果をスプライトに入力する関数
 void setSpriteMeasurement(int tvoc, int eco2, float pressure, float temperature, float humidity) {
-  sprite.setCursor(0, 40);
-  sprite.printf("TVOC: %4d ppb ", tvoc);
-  sprite.setCursor(0, 80);
-  sprite.printf("eCO2: %4d ppm ", eco2);
-  sprite.setCursor(0, 160);
+  sprite.setCursor(0, 10);
   sprite.printf("Pres.: %4.1f hPa", pressure);
-  sprite.setCursor(0, 200);
+  sprite.setCursor(0, 40);
   sprite.printf("Temp: %2.1f 'C %2.1f %c ", temperature, humidity, '%');
+  sprite.setCursor(0, 70);
+  sprite.printf("TVOC: %4d ppb ", tvoc);
+  sprite.setCursor(0, 100);
+  sprite.printf("eCO2: %4d ppm ", eco2);
 }
 
 // 構造体を参照して背景色をスプライトに入力する関数
@@ -414,18 +414,17 @@ void setEco2GraphList () {
   if (currentDateTime.tm_min != 0) {
     return ;
   } else {
-    eco2GraphList.push(sgp.eco2);
-    if (eco2GraphList.isFull()){
-      eco2GraphList.pop();
-    }
+    eco2GraphList.push(&sgp.eCO2);
   }
 }
 
 // Queueライブラリを使ったリストを参照し、棒グラフを作る
 void drawGraph () {
-  for (int i = 0; i < 23; i++){ 
-    int heightGraph = eco2GraphList.peekIdx(void * rec, i); //(TODO:peekIdxの引数の1つ目がなにかわかっていない)
-    //(TODO: グラフの描画処理)
+  for (int i = 23; i > 0; i--){ 
+    int eco2Value = 0;
+    eco2GraphList.peekIdx(&eco2Value, i); 
+    int graphHeightEco2 = map(eco2Value, 400, 5000, 1, 100);
+    // (TODO グラフの描写)
   }
 }
 
