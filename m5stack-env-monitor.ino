@@ -229,14 +229,12 @@ void measureSensorValues(struct SensorValue& latestSensorValue) {
 
 // Queueライブラリを使ったリストにeCO2値を保存
 void setEco2GraphValueList () {
-  /*
   if (currentDateTime.tm_min != 0) {
     return ;
   } else {
-  */
     bool pushIndex = eco2GraphValueList.push(&sgp.eCO2);
     Serial.print("pushIndex "); Serial.print(pushIndex); Serial.print("\n");
-  //}
+  }
 }
 
 // 画面表示する関数
@@ -274,7 +272,7 @@ void updateScreen(struct SensorValue latestSensorValue) {
   setSpriteMeasurement(sgp.TVOC, sgp.eCO2, latestSensorValue.pressure, latestSensorValue.temperature, latestSensorValue.humidity);
 
   // 過去のキューに入れたeCO2値をグラフに描写
-  for (int i = 23; i > 0; i--){ 
+  for (int i = 23; i >= 0; i--){ 
     int eco2Value = 0;
     int graphHeightEco2 = 0;
     bool peekIndex = eco2GraphValueList.peekIdx(&eco2Value, i); 
@@ -284,7 +282,7 @@ void updateScreen(struct SensorValue latestSensorValue) {
     } else {
       graphHeightEco2 = map(eco2Value, 0, 1500, 1, 50);
     }
-    sprite.fillRect((i * 13), (240 - graphHeightEco2), 13, graphHeightEco2, TFT_YELLOW);
+    sprite.fillRect((299 - (i * 13)), (240 - graphHeightEco2), 13, graphHeightEco2, TFT_YELLOW);
   }
   // 現在のeCO2値をグラフに描写
   int graphHeightEco2 = map((int)sgp.eCO2, 0, 1500, 1, 50);
