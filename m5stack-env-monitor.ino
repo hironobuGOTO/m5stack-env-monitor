@@ -76,7 +76,7 @@ struct DiscomfortColor {
 DiscomfortColor discomfortColor;
 
 // 不快指数の定義 (これの状態が変化したときに描画を変えるため、グローバルで保持)
-String discomfortStatus = "comfort";
+RGB discomfortStatusColor = discomfortColor.comfort;
 
 // バックライトの輝度を操作する値 0〜5 (初期値は中央値, loop() の前後で保持するのでグローバルで保持)
 unsigned char backlightCnt = 2;
@@ -103,7 +103,7 @@ int setCsvWroteTime = 0;
 TFT_eSprite sprite = TFT_eSprite(&M5.Lcd);
 
 // eCO2を棒グラフにするための配列
-cppQueue eco2GraphValueList(sizeof(int), 23, FIFO, true);
+cppQueue eco2GraphValueList(sizeof(int), 23, LIFO, true);
 
 void setup() {
   // LCD, SD, UART, I2C をそれぞれ初期化するかを指定して初期化する
@@ -237,37 +237,63 @@ void setEco2GraphValueList () {
   }
 }
 
+// RGBが同じことを確かめる関数
+bool compareRGBEqual(struct RGB a, struct RGB b){
+  return a.r == b.r &&
+         a.g == b.g &&
+         a.b == b.b;
+}
+
+bool compareEco2Value(int comparisonValue[]){
+  for (int i = 0; i < 23; i++){
+    if (comparisonValue[i] < comparisonValue[(i+1)]) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
 // 画面表示する関数
 void updateScreen(struct SensorValue latestSensorValue) {
   // Bボタンが押されたとき、色を黒にする
   if (bedroomModeFlg) {
     sprite.fillScreen(TFT_BLACK);
-    discomfortStatus = "comfort";
+    discomfortStatusColor = discomfortColor.comfort;
   } else {
     // 不快指数の計算
     float discomfortIndex = ((0.81 * latestSensorValue.temperature) + ((0.01 * latestSensorValue.humidity) * ((0.99 * latestSensorValue.temperature) - 14.3)) + 46.3);
     // 不快指数の画面表示
-    if (discomfortIndex < 55 && discomfortStatus != "cold") {
-      discomfortStatus = "cold";
+    if (discomfortIndex < 55 && !compareRGBEqual(discomfortStatusColor, discomfortColor.cold)) {
+      discomfortStatusColor = discomfortColor.cold;
       setSpriteBackColor(discomfortColor.cold);
-    } else if (discomfortIndex < 60 && discomfortIndex >= 55 && discomfortStatus != "chilly") {
-      discomfortStatus = "chilly";
+    } else if (discomfortIndex < 60 && discomfortIndex >= 55 && !compareRGBEqual(discomfortStatusColor, discomfortColor.chilly)) {
+      discomfortStatusColor = discomfortColor.chilly;
       setSpriteBackColor(discomfortColor.chilly);
-    } else if (discomfortIndex < 75 && discomfortIndex >= 60 && discomfortStatus != "comfort") {
-      discomfortStatus = "comfort";
+    } else if (discomfortIndex < 75 && discomfortIndex >= 60 && !compareRGBEqual(discomfortStatusColor, discomfortColor.comfort)) {
+      discomfortStatusColor = discomfortColor.comfort;
       setSpriteBackColor(discomfortColor.comfort);
-    } else if (discomfortIndex < 80 && discomfortIndex >= 75 && discomfortStatus != "warm") {
-      discomfortStatus = "warm";
+    } else if (discomfortIndex < 80 && discomfortIndex >= 75 && !compareRGBEqual(discomfortStatusColor, discomfortColor.warm)) {
+      discomfortStatusColor = discomfortColor.warm;
       setSpriteBackColor(discomfortColor.warm);
-    } else if (discomfortIndex < 85 && discomfortIndex >= 80 && discomfortStatus != "hot") {
-      discomfortStatus = "hot";
+    } else if (discomfortIndex < 85 && discomfortIndex >= 80 && !compareRGBEqual(discomfortStatusColor, discomfortColor.hot)) {
+      discomfortStatusColor = discomfortColor.hot;
       setSpriteBackColor(discomfortColor.hot);
-    } else if (discomfortIndex >= 85 && discomfortStatus != "boiling") {
-      discomfortStatus = "boiling";
+    } else if (discomfortIndex >= 85 && !compareRGBEqual(discomfortStatusColor, discomfortColor.boiling)) {
+      discomfortStatusColor = discomfortColor.boiling;
       setSpriteBackColor(discomfortColor.boiling);
     }
   }
 
+  int comparisonEco2Value[23];
+  for (int i = 0; i <= 23; i++){
+    eco2GraphValueList.peekIdx(&comparisonEco2Value[i], i);
+  }
+  if (compareEco2Value(comparisonEco2Value)){
+    sprite.fillRect(0, 190, 320, 50, getColor(discomfortStatusColor.r, discomfortStatusColor.r, discomfortStatusColor.b));
+    // スプライトを画面に表示
+    sprite.pushSprite(0, 0);
+  }
+  
   // 計測結果をスプライトに入力
   setSpriteMeasurement(sgp.TVOC, sgp.eCO2, latestSensorValue.pressure, latestSensorValue.temperature, latestSensorValue.humidity);
 
