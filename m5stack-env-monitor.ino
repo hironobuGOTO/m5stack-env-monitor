@@ -103,7 +103,7 @@ int setCsvWroteTime = 0;
 TFT_eSprite sprite = TFT_eSprite(&M5.Lcd);
 
 // eCO2を棒グラフにするための配列
-cppQueue eco2GraphValueList(sizeof(int), 23, LIFO, true);
+cppQueue eco2GraphValueList(sizeof(int), 23, FIFO, true);
 
 void setup() {
   // LCD, SD, UART, I2C をそれぞれ初期化するかを指定して初期化する
@@ -229,7 +229,9 @@ void measureSensorValues(struct SensorValue& latestSensorValue) {
 
 // Queueライブラリを使ったリストにeCO2値を保存
 void setEco2GraphValueList () {
-  if (currentDateTime.tm_min != 0) {
+  bool getTime = getLocalTime(&currentDateTime);
+  Serial.print("currentsec "); Serial.print(currentDateTime.tm_sec); Serial.print("\n");
+  if (currentDateTime.tm_sec != 0) {
     return ;
   } else {
     bool pushIndex = eco2GraphValueList.push(&sgp.eCO2);
@@ -289,9 +291,9 @@ void updateScreen(struct SensorValue latestSensorValue) {
     eco2GraphValueList.peekIdx(&comparisonEco2Value[i], i);
   }
   if (compareEco2Value(comparisonEco2Value)){
-    sprite.fillRect(0, 190, 320, 50, getColor(discomfortStatusColor.r, discomfortStatusColor.r, discomfortStatusColor.b));
+    sprite.fillRect(0, 140, 320, 100, getColor(discomfortStatusColor.r, discomfortStatusColor.r, discomfortStatusColor.b));
     // スプライトを画面に表示
-    sprite.pushSprite(0, 0);
+    //sprite.pushSprite(0, 0);
   }
   
   // 計測結果をスプライトに入力
@@ -306,12 +308,12 @@ void updateScreen(struct SensorValue latestSensorValue) {
     if (eco2Value > 1500) {
       graphHeightEco2 = 50;
     } else {
-      graphHeightEco2 = map(eco2Value, 0, 1500, 1, 50);
+      graphHeightEco2 = map(eco2Value, 0, 1500, 1, 100);
     }
     sprite.fillRect((299 - (i * 13)), (240 - graphHeightEco2), 13, graphHeightEco2, TFT_YELLOW);
   }
   // 現在のeCO2値をグラフに描写
-  int graphHeightEco2 = map((int)sgp.eCO2, 0, 1500, 1, 50);
+  int graphHeightEco2 = map((int)sgp.eCO2, 0, 1500, 1, 100);
   sprite.fillRect(299, (240 - graphHeightEco2), 21, graphHeightEco2, TFT_YELLOW);
 
   // スプライトを画面に表示
@@ -368,14 +370,14 @@ void updateLedBar() {
       // 警告時のLED点灯と音声鳴動
       setLedColor(eco2ThresholdColor.caution, 50);
       if (!cautionFlg) {
-        playMp3("/1500ppm.mp3");
+        //playMp3("/1500ppm.mp3");
         cautionFlg = true;
       }
     } else if (sgp.eCO2 > eco2Threshold.attention) {
       // 注意時のLED点灯と音声鳴動
       setLedColor(eco2ThresholdColor.attention, 25);
       if (!attentionFlg) {
-        playMp3("/1000ppm.mp3");     
+        //playMp3("/1000ppm.mp3");     
         attentionFlg = true;
         cautionFlg = false;
       }
@@ -473,7 +475,7 @@ void loop() {
 
   // 1分経過ごとにログを保存
   unsigned long lapsedTime = millis();
-  Serial.println(lapsedTime);
+  //Serial.println(lapsedTime);
   if (lapsedTime > setCsvWroteTime + 60000) {
     saveLog(latestSensorValue);
     setCsvWroteTime = lapsedTime;
