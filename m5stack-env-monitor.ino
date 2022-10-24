@@ -69,7 +69,7 @@ struct DiscomfortColor {
   RGB chilly = {135, 206, 235};
   RGB comfort = {0, 0, 0};
   RGB warm = {240, 230, 140};
-  RGB hot = {255, 165, 0};
+  RGB hot = {255, 140, 0};
   RGB boiling = {255, 127, 80};
 };
 // 不快指数用警告色の構造体変数の宣言
@@ -233,7 +233,7 @@ void measureSensorValues(struct SensorValue& latestSensorValue) {
   }
 }
 
-// Queueライブラリを使ったリストに1分ごとにeCO2値を保存
+// Queueライブラリを使ったリストに1分ごとにeCO2値を保存する関数
 void setEco2GraphValueList () {
   bool pushIndex = eco2GraphValueList.push(&sgp.eCO2);
   Serial.print("pushIndex "); Serial.print(pushIndex); Serial.print("\n");
@@ -246,6 +246,7 @@ bool compareRGBEqual(struct RGB a, struct RGB b){
          a.b == b.b;
 }
 
+// eCO2の値が前回計測したときから下回っていないことを確かめる関数
 bool compareEco2Value(int comparisonValue[]){
   for (int i = 0; i < 23; i++){
     if (comparisonValue[i] < comparisonValue[(i+1)]) {
@@ -259,31 +260,31 @@ bool compareEco2Value(int comparisonValue[]){
 void updateScreen(struct SensorValue latestSensorValue) {
   // Bボタンが押されたとき、色を黒にする
   if (bedroomModeFlg) {
-    sprite.fillScreen(TFT_BLACK);
     discomfortStatusColor = discomfortColor.comfort;
+    setSpriteBackColor(discomfortColor.comfort);
   } else {
     // 不快指数の計算
     float discomfortIndex = ((0.81 * latestSensorValue.temperature) + ((0.01 * latestSensorValue.humidity) * ((0.99 * latestSensorValue.temperature) - 14.3)) + 46.3);
     // 不快指数の画面表示
     if (discomfortIndex < 55 && !compareRGBEqual(discomfortStatusColor, discomfortColor.cold)) {
       discomfortStatusColor = discomfortColor.cold;
-      setSpriteBackColor(discomfortColor.cold);
-    } else if (discomfortIndex < 60 && discomfortIndex >= 55 && !compareRGBEqual(discomfortStatusColor, discomfortColor.chilly)) {
+    } 
+    if (discomfortIndex < 60 && discomfortIndex >= 55 && !compareRGBEqual(discomfortStatusColor, discomfortColor.chilly)) {
       discomfortStatusColor = discomfortColor.chilly;
-      setSpriteBackColor(discomfortColor.chilly);
-    } else if (discomfortIndex < 75 && discomfortIndex >= 60 && !compareRGBEqual(discomfortStatusColor, discomfortColor.comfort)) {
-      discomfortStatusColor = discomfortColor.comfort;
-      setSpriteBackColor(discomfortColor.comfort);
-    } else if (discomfortIndex < 80 && discomfortIndex >= 75 && !compareRGBEqual(discomfortStatusColor, discomfortColor.warm)) {
-      discomfortStatusColor = discomfortColor.warm;
-      setSpriteBackColor(discomfortColor.warm);
-    } else if (discomfortIndex < 85 && discomfortIndex >= 80 && !compareRGBEqual(discomfortStatusColor, discomfortColor.hot)) {
-      discomfortStatusColor = discomfortColor.hot;
-      setSpriteBackColor(discomfortColor.hot);
-    } else if (discomfortIndex >= 85 && !compareRGBEqual(discomfortStatusColor, discomfortColor.boiling)) {
-      discomfortStatusColor = discomfortColor.boiling;
-      setSpriteBackColor(discomfortColor.boiling);
     }
+    if (discomfortIndex < 75 && discomfortIndex >= 60 && !compareRGBEqual(discomfortStatusColor, discomfortColor.comfort)) {
+      discomfortStatusColor = discomfortColor.comfort;
+    }
+    if (discomfortIndex < 80 && discomfortIndex >= 75 && !compareRGBEqual(discomfortStatusColor, discomfortColor.warm)) {
+      discomfortStatusColor = discomfortColor.warm;
+    }
+    if (discomfortIndex < 85 && discomfortIndex >= 80 && !compareRGBEqual(discomfortStatusColor, discomfortColor.hot)) {
+      discomfortStatusColor = discomfortColor.hot;
+    }
+    if (discomfortIndex >= 85 && !compareRGBEqual(discomfortStatusColor, discomfortColor.boiling)) {
+      discomfortStatusColor = discomfortColor.boiling;
+    }
+    setSpriteBackColor(discomfortStatusColor);
   }
   // キューの値を配列に挿入
   int comparisonEco2Value[23];
@@ -292,9 +293,7 @@ void updateScreen(struct SensorValue latestSensorValue) {
   }
   // グラフが下がっているとき、下がることを反映するためにグラフ領域を背景色で塗りつぶす
   if (compareEco2Value(comparisonEco2Value)){
-    sprite.fillRect(0, 140, 320, 100, getColor(discomfortStatusColor.r, discomfortStatusColor.r, discomfortStatusColor.b));
-    // スプライトを画面に表示
-    //sprite.pushSprite(0, 0);
+    setSpriteBackColor(discomfortStatusColor);
   }
   
   // 計測結果をスプライトに入力
@@ -468,47 +467,49 @@ String getTimeString(struct tm currentDateTime) {
 
 void loop() {
   // 1秒ごとに本文を実行する
-  unsigned long lapsedTime = millis();
-  if (lapsedTime > loopExcuteTime + 1000) {
-    loopExcuteTime = lapsedTime;
-    Serial.println("loopExcuteTime set");
-    // 画面輝度調整の必須処理
-    M5.update();
-    // 計測
-    struct SensorValue latestSensorValue = {0.0, 0.0, 0.0};
-    measureSensorValues(latestSensorValue);
-
-    if (lapsedTime > queueWroteTime + 60000) {
-      setEco2GraphValueList();
-      queueWroteTime = lapsedTime; 
-    }
-  
-    // 1分経過ごとにログを保存
-    if (lapsedTime > csvWroteTime + 60000) {
-      saveLog(latestSensorValue);
-      csvWroteTime = lapsedTime;
-    }
-  
-    // 画面表示
-    updateScreen(latestSensorValue);
-  
-    // ボタンで画面輝度調節
-    if (M5.BtnA.wasPressed()) {
-      adjustBacklight(1);
-    }
-    if (M5.BtnC.wasPressed()) {
-      adjustBacklight(-1);
-    }
-  
-    // 寝室モードフラグのトグル
-    if (M5.BtnB.wasPressed()) {
-      bedroomModeFlg = !bedroomModeFlg;
-    }
-  
-    // LEDバーでの表示
-    updateLedBar();
-  
-    // 生成した設定情報JSONをSDカードに出力する
-    saveConfig(); 
+  unsigned long elapsedTime = millis();
+  if (elapsedTime < loopExcuteTime + 1000) {
+    return ;
   }
+  loopExcuteTime = elapsedTime;
+  Serial.println("loopExcuteTime set");
+  // 画面輝度調整の必須処理
+  M5.update();
+  // 計測
+  struct SensorValue latestSensorValue = {0.0, 0.0, 0.0};
+  measureSensorValues(latestSensorValue);
+
+  if (elapsedTime > queueWroteTime + 60000) {
+    setEco2GraphValueList();
+    queueWroteTime = elapsedTime; 
+  }
+
+  // 1分経過ごとにログを保存
+  if (elapsedTime > csvWroteTime + 60000) {
+    saveLog(latestSensorValue);
+    csvWroteTime = elapsedTime;
+  }
+
+  // 画面表示
+  updateScreen(latestSensorValue);
+
+  // ボタンで画面輝度調節
+  if (M5.BtnA.wasPressed()) {
+    adjustBacklight(1);
+  }
+  if (M5.BtnC.wasPressed()) {
+    adjustBacklight(-1);
+  }
+
+  // 寝室モードフラグのトグル
+  if (M5.BtnB.wasPressed()) {
+    bedroomModeFlg = !bedroomModeFlg;
+  }
+
+  // LEDバーでの表示
+  updateLedBar();
+
+  // 生成した設定情報JSONをSDカードに出力する
+  saveConfig(); 
+  
 }
