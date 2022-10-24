@@ -96,8 +96,14 @@ bool attentionFlg = false;
 // 寝室モードかを判別するフラグ(loop() の前後で保持するのでグローバルで保持)
 bool tmpBedroomModeFlg;
 
+// 最後に処理文を動かした時間を保管しておく変数 (loop() の前後で保持するのでグローバルで保持)
+int loopExcuteTime = 0;
+
+// 最後にキューに値を保存した時間を保管しておく変数(loop() の前後で保持するのでグローバルで保持)
+int queueWroteTime = 0;
+
 // 最後にCSVに出力した時間を保管しておく変数 (loop() の前後で保持するのでグローバルで保持)
-int setCsvWroteTime = 0;
+int csvWroteTime = 0;
 
 // Sprite クラスのインスタンス化
 TFT_eSprite sprite = TFT_eSprite(&M5.Lcd);
@@ -227,16 +233,10 @@ void measureSensorValues(struct SensorValue& latestSensorValue) {
   }
 }
 
-// Queueライブラリを使ったリストにeCO2値を保存
+// Queueライブラリを使ったリストに1分ごとにeCO2値を保存
 void setEco2GraphValueList () {
-  bool getTime = getLocalTime(&currentDateTime);
-  Serial.print("currentsec "); Serial.print(currentDateTime.tm_sec); Serial.print("\n");
-  if (currentDateTime.tm_sec != 0) {
-    return ;
-  } else {
-    bool pushIndex = eco2GraphValueList.push(&sgp.eCO2);
-    Serial.print("pushIndex "); Serial.print(pushIndex); Serial.print("\n");
-  }
+  bool pushIndex = eco2GraphValueList.push(&sgp.eCO2);
+  Serial.print("pushIndex "); Serial.print(pushIndex); Serial.print("\n");
 }
 
 // RGBが同じことを確かめる関数
@@ -285,11 +285,12 @@ void updateScreen(struct SensorValue latestSensorValue) {
       setSpriteBackColor(discomfortColor.boiling);
     }
   }
-
+  // キューの値を配列に挿入
   int comparisonEco2Value[23];
   for (int i = 0; i <= 23; i++){
     eco2GraphValueList.peekIdx(&comparisonEco2Value[i], i);
   }
+  // グラフが下がっているとき、下がることを反映するためにグラフ領域を背景色で塗りつぶす
   if (compareEco2Value(comparisonEco2Value)){
     sprite.fillRect(0, 140, 320, 100, getColor(discomfortStatusColor.r, discomfortStatusColor.r, discomfortStatusColor.b));
     // スプライトを画面に表示
@@ -305,8 +306,9 @@ void updateScreen(struct SensorValue latestSensorValue) {
     int graphHeightEco2 = 0;
     bool peekIndex = eco2GraphValueList.peekIdx(&eco2Value, i); 
     //Serial.print("peekIndex "); Serial.print(peekIndex); Serial.print("\n");
+    //eCO2が1500を超えたときグラフ最大値まで持っていく
     if (eco2Value > 1500) {
-      graphHeightEco2 = 50;
+      graphHeightEco2 = 100;
     } else {
       graphHeightEco2 = map(eco2Value, 0, 1500, 1, 100);
     }
@@ -465,42 +467,48 @@ String getTimeString(struct tm currentDateTime) {
 }
 
 void loop() {
-  // 画面輝度調整の必須処理
-  M5.update();
-  // 計測
-  struct SensorValue latestSensorValue = {0.0, 0.0, 0.0};
-  measureSensorValues(latestSensorValue);
-
-  setEco2GraphValueList();
-
-  // 1分経過ごとにログを保存
+  // 1秒ごとに本文を実行する
   unsigned long lapsedTime = millis();
-  //Serial.println(lapsedTime);
-  if (lapsedTime > setCsvWroteTime + 60000) {
-    saveLog(latestSensorValue);
-    setCsvWroteTime = lapsedTime;
-  }
+  if (lapsedTime > loopExcuteTime + 1000) {
+    loopExcuteTime = lapsedTime;
+    Serial.println("loopExcuteTime set");
+    // 画面輝度調整の必須処理
+    M5.update();
+    // 計測
+    struct SensorValue latestSensorValue = {0.0, 0.0, 0.0};
+    measureSensorValues(latestSensorValue);
 
-  // 画面表示
-  updateScreen(latestSensorValue);
-
-  // ボタンで画面輝度調節
-  if (M5.BtnA.wasPressed()) {
-    adjustBacklight(1);
-  }
-  if (M5.BtnC.wasPressed()) {
-    adjustBacklight(-1);
-  }
-
-  // 寝室モードフラグのトグル
-  if (M5.BtnB.wasPressed()) {
-    bedroomModeFlg = !bedroomModeFlg;
-  }
-
-  // LEDバーでの表示
-  updateLedBar();
-
-  // 生成した設定情報JSONをSDカードに出力する
-  saveConfig();
+    if (lapsedTime > queueWroteTime + 60000) {
+      setEco2GraphValueList();
+      queueWroteTime = lapsedTime; 
+    }
   
+    // 1分経過ごとにログを保存
+    if (lapsedTime > csvWroteTime + 60000) {
+      saveLog(latestSensorValue);
+      csvWroteTime = lapsedTime;
+    }
+  
+    // 画面表示
+    updateScreen(latestSensorValue);
+  
+    // ボタンで画面輝度調節
+    if (M5.BtnA.wasPressed()) {
+      adjustBacklight(1);
+    }
+    if (M5.BtnC.wasPressed()) {
+      adjustBacklight(-1);
+    }
+  
+    // 寝室モードフラグのトグル
+    if (M5.BtnB.wasPressed()) {
+      bedroomModeFlg = !bedroomModeFlg;
+    }
+  
+    // LEDバーでの表示
+    updateLedBar();
+  
+    // 生成した設定情報JSONをSDカードに出力する
+    saveConfig(); 
+  }
 }
