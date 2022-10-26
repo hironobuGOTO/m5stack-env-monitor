@@ -266,6 +266,23 @@ bool compareEco2Value(int comparisonValue[]){
   return 0;
 }
 
+// 構造体を参照して背景色をスプライトに入力する関数
+void setSpriteBackColor(RGB rgb) {
+  sprite.fillScreen(getColor(rgb.r, rgb.g, rgb.b));
+}
+
+// 計測結果をスプライトに入力する関数
+void setSpriteMeasurement(int tvoc, int eco2, float pressure, float temperature, float humidity) {
+  sprite.setCursor(0, 10);
+  sprite.printf("Pres.: %4.1f hPa", pressure);
+  sprite.setCursor(0, 40);
+  sprite.printf("Temp: %2.1f 'C %2.1f %c ", temperature, humidity, '%');
+  sprite.setCursor(0, 70);
+  sprite.printf("TVOC: %4d ppb ", tvoc);
+  sprite.setCursor(0, 100);
+  sprite.printf("eCO2: %4d ppm ", eco2);
+}
+
 // 画面表示する関数
 void updateScreen(struct SensorValue latestSensorValue) {
   // Bボタンが押されたとき、色を黒にする
@@ -320,13 +337,25 @@ void updateScreen(struct SensorValue latestSensorValue) {
     } else {
       graphHeightEco2 = map(eco2Value, 0, 1500, 1, 100);
     }
-    sprite.fillRect((i * 13), (240 - graphHeightEco2), 13, graphHeightEco2, TFT_YELLOW);
+    if (graphHeightEco2 < 67) {
+      sprite.fillRect((i * 13), (240 - graphHeightEco2), 13, graphHeightEco2, TFT_GREEN);
+    } else if (graphHeightEco2 < 99) {
+      sprite.fillRect((i * 13), (240 - graphHeightEco2), 13, graphHeightEco2, TFT_YELLOW);
+    } else {
+      sprite.fillRect((i * 13), (240 - graphHeightEco2), 13, graphHeightEco2, TFT_RED);
+    }
   }
   // 現在のeCO2値をグラフに描写
   int graphHeightEco2 = map((int)sgp.eCO2, 0, 1500, 1, 100);
   Serial.print("mappedValue "); Serial.print(graphHeightEco2); Serial.print("\n");
-  sprite.fillRect(299, (240 - graphHeightEco2), 21, graphHeightEco2, TFT_YELLOW);
-
+  if (graphHeightEco2 < 67) {
+    sprite.fillRect(299, (240 - graphHeightEco2), 21, graphHeightEco2, TFT_GREEN);
+  } else if (graphHeightEco2 < 99) {
+    sprite.fillRect(299, (240 - graphHeightEco2), 21, graphHeightEco2, TFT_YELLOW);
+  } else {
+    sprite.fillRect(299, (240 - graphHeightEco2), 21, graphHeightEco2, TFT_RED);
+  }
+  
   // スプライトを画面に表示
   sprite.pushSprite(0, 0);
 
@@ -350,23 +379,6 @@ void adjustBacklight(int i) {
   } else if (backlightCnt < 0) {
     backlightCnt = 0;
   }
-}
-
-// 計測結果をスプライトに入力する関数
-void setSpriteMeasurement(int tvoc, int eco2, float pressure, float temperature, float humidity) {
-  sprite.setCursor(0, 10);
-  sprite.printf("Pres.: %4.1f hPa", pressure);
-  sprite.setCursor(0, 40);
-  sprite.printf("Temp: %2.1f 'C %2.1f %c ", temperature, humidity, '%');
-  sprite.setCursor(0, 70);
-  sprite.printf("TVOC: %4d ppb ", tvoc);
-  sprite.setCursor(0, 100);
-  sprite.printf("eCO2: %4d ppm ", eco2);
-}
-
-// 構造体を参照して背景色をスプライトに入力する関数
-void setSpriteBackColor(RGB rgb) {
-  sprite.fillScreen(getColor(rgb.r, rgb.g, rgb.b));
 }
 
 // LEDを点灯する関数
@@ -490,10 +502,10 @@ void loop() {
   measureSensorValues(latestSensorValue);
 
   // 1分に一回eCO2の値をリストに保存
-  if (elapsedTime > queueWroteTime + 60000) {
+  //if (elapsedTime > queueWroteTime + 60000) {
     setEco2GraphValueList();
     queueWroteTime = elapsedTime; 
-  }
+  //}
 
   // 1分経過ごとにログを保存
   if (elapsedTime > csvWroteTime + 60000) {
