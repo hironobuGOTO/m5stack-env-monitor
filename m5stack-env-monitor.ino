@@ -122,7 +122,7 @@ void setup() {
   M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
   M5.Lcd.setTextDatum(TL_DATUM);
   M5.Lcd.setCursor(20, 40);
-  
+
   // SDカードが初期化できなかったとき、エラーを返す
   if (!SD.begin()) {
     M5.Lcd.println("Card failed, or not present");
@@ -189,18 +189,18 @@ void setup() {
   sprite.createSprite(M5.Lcd.width(), M5.Lcd.height());
 
   // グラフ表示用のキューを初期化する関数を呼び出し
-  initEco2GraphValueList ();
+  initializeEco2GraphValueList ();
 }
 
 //温度、相対湿度から絶対湿度を計算する関数
 uint32_t getAbsoluteHumidity(float temperature, float humidity) {
   // approximation formula from Sensirion SGP30 Driver Integration chapter 3.15
   const float ABSOLUTE_HUMIDITY = 216.7f
-                                 * ((humidity / 100.0f) * 6.112f
-                                    * exp((17.62f * temperature) / (243.12f + temperature))
-                                    / (273.15f + temperature)); // [g/m^3]
+                                  * ((humidity / 100.0f) * 6.112f
+                                     * exp((17.62f * temperature) / (243.12f + temperature))
+                                     / (273.15f + temperature)); // [g/m^3]
   const uint32_t ABSOLUTE_HUMIDITY_SCALED = static_cast<uint32_t>(1000.0f
-                                          * ABSOLUTE_HUMIDITY); // [mg/m^3]
+      * ABSOLUTE_HUMIDITY); // [mg/m^3]
   return ABSOLUTE_HUMIDITY_SCALED;
 }
 
@@ -236,30 +236,29 @@ void measureSensorValues(struct SensorValue& latestSensorValue) {
   }
 }
 // Queueライブラリを使ったリストを初期化する関数
-void initEco2GraphValueList () {
-  int mappedValue = 400;
-  for (int i = 0; i <= 23; i++){
-    eco2GraphValueList.push(&mappedValue);
+void initializeEco2GraphValueList () {
+  const int MAPPED_VALUE = 400;
+  for (int i = 0; i <= 23; i++) {
+    eco2GraphValueList.push(&MAPPED_VALUE);
   }
 }
 
 // Queueライブラリを使ったリストに呼び出されるごとにeCO2値を保存する関数
 void setEco2GraphValueList () {
-  bool pushIndex = eco2GraphValueList.push(&sgp.eCO2);
-  Serial.print("pushIndex "); Serial.print(pushIndex); Serial.print("\n");
+  eco2GraphValueList.push(&sgp.eCO2);
 }
 
 // RGBが同じことを確かめる関数
-bool compareRGBEqual(struct RGB a, struct RGB b){
+bool compareRGBEqual(struct RGB a, struct RGB b) {
   return a.r == b.r &&
          a.g == b.g &&
          a.b == b.b;
 }
 
 // eCO2の値が前回計測したときから下回っていないことを確かめる関数
-bool compareEco2Value(int comparisonValue[]){
-  for (int i = 0; i < 23; i++){
-    if (comparisonValue[i] < comparisonValue[(i+1)]) {
+bool compareEco2Value(int comparisonValue[]) {
+  for (int i = 0; i < 23; i++) {
+    if (comparisonValue[i] < comparisonValue[(i + 1)]) {
       return 1;
     }
   }
@@ -291,46 +290,46 @@ void updateScreen(struct SensorValue latestSensorValue) {
     setSpriteBackColor(discomfortColor.comfort);
   } else {
     // 不快指数の計算
-    float discomfortIndex = ((0.81 * latestSensorValue.temperature) + ((0.01 * latestSensorValue.humidity) * ((0.99 * latestSensorValue.temperature) - 14.3)) + 46.3);
+    const float DISCOMFORT_INDEX = ((0.81 * latestSensorValue.temperature) + ((0.01 * latestSensorValue.humidity) * ((0.99 * latestSensorValue.temperature) - 14.3)) + 46.3);
     // 不快指数の画面表示
-    if (discomfortIndex < 55 && !compareRGBEqual(discomfortStatusColor, discomfortColor.cold)) {
+    if (DISCOMFORT_INDEX < 55 && !compareRGBEqual(discomfortStatusColor, discomfortColor.cold)) {
       discomfortStatusColor = discomfortColor.cold;
-    } 
-    if (discomfortIndex < 60 && discomfortIndex >= 55 && !compareRGBEqual(discomfortStatusColor, discomfortColor.chilly)) {
+    }
+    if (DISCOMFORT_INDEX < 60 && DISCOMFORT_INDEX >= 55 && !compareRGBEqual(discomfortStatusColor, discomfortColor.chilly)) {
       discomfortStatusColor = discomfortColor.chilly;
     }
-    if (discomfortIndex < 75 && discomfortIndex >= 60 && !compareRGBEqual(discomfortStatusColor, discomfortColor.comfort)) {
+    if (DISCOMFORT_INDEX < 75 && DISCOMFORT_INDEX >= 60 && !compareRGBEqual(discomfortStatusColor, discomfortColor.comfort)) {
       discomfortStatusColor = discomfortColor.comfort;
     }
-    if (discomfortIndex < 80 && discomfortIndex >= 75 && !compareRGBEqual(discomfortStatusColor, discomfortColor.warm)) {
+    if (DISCOMFORT_INDEX < 80 && DISCOMFORT_INDEX >= 75 && !compareRGBEqual(discomfortStatusColor, discomfortColor.warm)) {
       discomfortStatusColor = discomfortColor.warm;
     }
-    if (discomfortIndex < 85 && discomfortIndex >= 80 && !compareRGBEqual(discomfortStatusColor, discomfortColor.hot)) {
+    if (DISCOMFORT_INDEX < 85 && DISCOMFORT_INDEX >= 80 && !compareRGBEqual(discomfortStatusColor, discomfortColor.hot)) {
       discomfortStatusColor = discomfortColor.hot;
     }
-    if (discomfortIndex >= 85 && !compareRGBEqual(discomfortStatusColor, discomfortColor.boiling)) {
+    if (DISCOMFORT_INDEX >= 85 && !compareRGBEqual(discomfortStatusColor, discomfortColor.boiling)) {
       discomfortStatusColor = discomfortColor.boiling;
     }
     setSpriteBackColor(discomfortStatusColor);
   }
   // キューの値を配列に挿入
   int comparisonEco2Value[23];
-  for (int i = 0; i <= 23; i++){
+  for (int i = 0; i <= 23; i++) {
     eco2GraphValueList.peekIdx(&comparisonEco2Value[i], i);
   }
   // グラフが下がっているとき、下がることを反映するためにグラフ領域を背景色で塗りつぶす
-  if (compareEco2Value(comparisonEco2Value)){
+  if (compareEco2Value(comparisonEco2Value)) {
     setSpriteBackColor(discomfortStatusColor);
   }
-  
+
   // 計測結果をスプライトに入力
   setSpriteMeasurement(sgp.TVOC, sgp.eCO2, latestSensorValue.pressure, latestSensorValue.temperature, latestSensorValue.humidity);
 
   // 過去のキューに入れたeCO2値をグラフに描写
-  for (int i = 0; i <= 23; i++){ 
+  for (int i = 0; i <= 23; i++) {
     int eco2Value = 0;
     int graphHeightEco2 = 0;
-    bool peekIndex = eco2GraphValueList.peekIdx(&eco2Value, i); 
+    bool peekIndex = eco2GraphValueList.peekIdx(&eco2Value, i);
     //eCO2が1500を超えたときグラフ最大値まで持っていく
     if (eco2Value > 1500) {
       graphHeightEco2 = 100;
@@ -346,22 +345,18 @@ void updateScreen(struct SensorValue latestSensorValue) {
     }
   }
   // 現在のeCO2値をグラフに描写
-  int graphHeightEco2 = map((int)sgp.eCO2, 0, 1500, 1, 100);
-  Serial.print("mappedValue "); Serial.print(graphHeightEco2); Serial.print("\n");
-  if (graphHeightEco2 < 67) {
-    sprite.fillRect(299, (240 - graphHeightEco2), 21, graphHeightEco2, TFT_GREEN);
-  } else if (graphHeightEco2 < 99) {
-    sprite.fillRect(299, (240 - graphHeightEco2), 21, graphHeightEco2, TFT_YELLOW);
+  const int LATEST_GRAPH_HEIGHT_ECO2 = map((int)sgp.eCO2, 0, 1500, 1, 100);
+  if (LATEST_GRAPH_HEIGHT_ECO2 < 67) {
+    sprite.fillRect(299, (240 - LATEST_GRAPH_HEIGHT_ECO2), 21, LATEST_GRAPH_HEIGHT_ECO2, TFT_GREEN);
+  } else if (LATEST_GRAPH_HEIGHT_ECO2 < 99) {
+    sprite.fillRect(299, (240 - LATEST_GRAPH_HEIGHT_ECO2), 21, LATEST_GRAPH_HEIGHT_ECO2, TFT_YELLOW);
   } else {
-    sprite.fillRect(299, (240 - graphHeightEco2), 21, graphHeightEco2, TFT_RED);
+    sprite.fillRect(299, (240 - LATEST_GRAPH_HEIGHT_ECO2), 21, LATEST_GRAPH_HEIGHT_ECO2, TFT_RED);
   }
-  
+
   // スプライトを画面に表示
   sprite.pushSprite(0, 0);
 
-  // eCO2とTVOCの値をシリアルモニタに通信する
-  //Serial.print("eCO2 "); Serial.print(sgp.eCO2); Serial.print("\t");
-  //Serial.print("TVOC "); Serial.print(sgp.TVOC); Serial.print("\n");
   // 寝室モードのとき輝度を落とす
   if (bedroomModeFlg) {
     M5.Lcd.setBrightness(5);
@@ -400,7 +395,7 @@ void updateLedBar() {
       // 注意時のLED点灯と音声鳴動
       setLedColor(eco2ThresholdColor.attention, 25);
       if (!attentionFlg) {
-        //playMp3("/1000ppm.mp3");     
+        //playMp3("/1000ppm.mp3");
         attentionFlg = true;
         cautionFlg = false;
       }
@@ -494,18 +489,17 @@ void loop() {
     return ;
   }
   loopExcuteTime = elapsedTime;
-  Serial.println("loopExcuteTime set");
   // 画面輝度調整の必須処理
   M5.update();
   // 計測
   struct SensorValue latestSensorValue = {0.0, 0.0, 0.0};
   measureSensorValues(latestSensorValue);
 
-  // 1分に一回eCO2の値をリストに保存
-  //if (elapsedTime > queueWroteTime + 60000) {
+  // 1時間に一回eCO2の値をリストに保存
+  if (elapsedTime > queueWroteTime + 3600000) {
     setEco2GraphValueList();
-    queueWroteTime = elapsedTime; 
-  //}
+    queueWroteTime = elapsedTime;
+  }
 
   // 1分経過ごとにログを保存
   if (elapsedTime > csvWroteTime + 60000) {
@@ -533,6 +527,5 @@ void loop() {
   updateLedBar();
 
   // 生成した設定情報JSONをSDカードに出力する
-  saveConfig(); 
-  
+  saveConfig();
 }
