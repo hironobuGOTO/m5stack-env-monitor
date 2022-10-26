@@ -187,6 +187,9 @@ void setup() {
   sprite.setTextFont(4);
   sprite.setTextSize(1);
   sprite.createSprite(M5.Lcd.width(), M5.Lcd.height());
+
+  // グラフ表示用のキューを初期化する関数を呼び出し
+  initEco2GraphValueList ();
 }
 
 //温度、相対湿度から絶対湿度を計算する関数
@@ -232,8 +235,15 @@ void measureSensorValues(struct SensorValue& latestSensorValue) {
     while (1);
   }
 }
+// Queueライブラリを使ったリストを初期化する関数
+void initEco2GraphValueList () {
+  int mappedValue = 400;
+  for (int i = 0; i <= 23; i++){
+    eco2GraphValueList.push(&mappedValue);
+  }
+}
 
-// Queueライブラリを使ったリストに1分ごとにeCO2値を保存する関数
+// Queueライブラリを使ったリストに呼び出されるごとにeCO2値を保存する関数
 void setEco2GraphValueList () {
   bool pushIndex = eco2GraphValueList.push(&sgp.eCO2);
   Serial.print("pushIndex "); Serial.print(pushIndex); Serial.print("\n");
@@ -300,21 +310,21 @@ void updateScreen(struct SensorValue latestSensorValue) {
   setSpriteMeasurement(sgp.TVOC, sgp.eCO2, latestSensorValue.pressure, latestSensorValue.temperature, latestSensorValue.humidity);
 
   // 過去のキューに入れたeCO2値をグラフに描写
-  for (int i = 23; i >= 0; i--){ 
+  for (int i = 0; i <= 23; i++){ 
     int eco2Value = 0;
     int graphHeightEco2 = 0;
     bool peekIndex = eco2GraphValueList.peekIdx(&eco2Value, i); 
-    //Serial.print("peekIndex "); Serial.print(peekIndex); Serial.print("\n");
     //eCO2が1500を超えたときグラフ最大値まで持っていく
     if (eco2Value > 1500) {
       graphHeightEco2 = 100;
     } else {
       graphHeightEco2 = map(eco2Value, 0, 1500, 1, 100);
     }
-    sprite.fillRect((299 - (i * 13)), (240 - graphHeightEco2), 13, graphHeightEco2, TFT_YELLOW);
+    sprite.fillRect((i * 13), (240 - graphHeightEco2), 13, graphHeightEco2, TFT_YELLOW);
   }
   // 現在のeCO2値をグラフに描写
   int graphHeightEco2 = map((int)sgp.eCO2, 0, 1500, 1, 100);
+  Serial.print("mappedValue "); Serial.print(graphHeightEco2); Serial.print("\n");
   sprite.fillRect(299, (240 - graphHeightEco2), 21, graphHeightEco2, TFT_YELLOW);
 
   // スプライトを画面に表示
@@ -479,6 +489,7 @@ void loop() {
   struct SensorValue latestSensorValue = {0.0, 0.0, 0.0};
   measureSensorValues(latestSensorValue);
 
+  // 1分に一回eCO2の値をリストに保存
   if (elapsedTime > queueWroteTime + 60000) {
     setEco2GraphValueList();
     queueWroteTime = elapsedTime; 
