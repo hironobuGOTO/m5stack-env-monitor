@@ -1,5 +1,3 @@
-#include "config.h"
-#include "notifier.h"
 #include <M5Stack.h>
 #include <WiFi.h>
 #include <map>
@@ -22,6 +20,10 @@ uint16_t tvoc_base = 40910; //TVOC baseline仮設定値
 
 // 棒グラフを生成する配列をキューで処理するためのライブラリ
 #include <cppQueue.h>
+
+#include "config.h"
+#include "notifier.h"
+#include "config_store.h"
 
 // SHT30で計測した値の構造体
 struct SensorValue {
@@ -53,19 +55,8 @@ DiscomfortColor discomfortColor;
 // 不快指数の定義 (これの状態が変化したときに描画を変えるため、グローバルで保持)
 RGB discomfortStatusColor = discomfortColor.comfort;
 
-// バックライトの輝度を操作する値 0〜5 (初期値は中央値, loop() の前後で保持するのでグローバルで保持)
-unsigned char backlightCnt = 2;
-// 変更があったときのみSDカードに保存するための一時退避所 (loop() の前後で保持するのでグローバルで保持)
-unsigned char tmpBacklightCnt;
-
 // 時間をtm型で取得する変数
 struct tm currentDateTime;
-
-// 寝室モードかを確認するフラグ(loop() の前後で保持するのでグローバルで保持)
-bool bedroomModeFlg = false;
-
-// 寝室モードかを判別するフラグ(loop() の前後で保持するのでグローバルで保持)
-bool tmpBedroomModeFlg;
 
 // 最後に処理文を動かした時間を保管しておく変数 (loop() の前後で保持するのでグローバルで保持)
 int loopExcuteTime = 0;
@@ -78,6 +69,9 @@ int csvWroteTime = 0;
 
 // Notifier クラスのインスタンス化
 Notifier notifier;
+
+// Config_store クラスのインスタンス化
+ConfigStore configStore;
 
 // Sprite クラスのインスタンス化
 TFT_eSprite sprite = TFT_eSprite(&M5.Lcd);
@@ -114,23 +108,6 @@ void setup() {
     while (1);
   }
 
-  // SDカードに保存された設定情報を読み込み、初期値に反映させる
-  File configFile = SD.open("/config.txt", FILE_READ);
-  char configArray[configFile.size()];
-
-  // 設定ファイルの読み込み (1文字ずつ)
-  for (int i = 0; i < configFile.size(); i++) {
-    configArray[i] = configFile.read();
-  }
-  configFile.close();
-
-  // JSONを読んで配列に変換
-  DynamicJsonDocument configJson(1024);
-  deserializeJson(configJson, configArray);
-
-  backlightCnt = configJson["backlightCnt"];
-  bedroomModeFlg = configJson["bedroomFlag"];
-
   // Wi-Fiを起動してntpから現在時刻を取得する
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
@@ -160,8 +137,6 @@ void setup() {
   // 基準値を設定しない場合はコメントアウト
   sgp.setIAQBaseline(eco2_base, tvoc_base);
 
-
-
   // SGP30が動作するまで15秒起動中の表示を出す
   M5.Lcd.printf("\n  SGP30 waking");
   for (int i = 0; i < 15; i++) {
@@ -177,6 +152,9 @@ void setup() {
   sprite.setTextFont(4);
   sprite.setTextSize(1);
   sprite.createSprite(M5.Lcd.width(), M5.Lcd.height());
+
+  // 初期値の呼び出し
+  configStore.load();
 
   // グラフ表示用のキューを初期化する関数を呼び出し
   initializeEco2GraphValueList();
@@ -294,7 +272,7 @@ void setSpriteMeasurement(int tvoc, int eco2, float pressure, float temperature,
 // 画面表示する関数
 void updateScreen(struct SensorValue latestSensorValue) {
   // Bボタンが押されたとき、色を黒にする
-  if (bedroomModeFlg) {
+  if (configStore.getBedroomMode()) {
     discomfortStatusColor = discomfortColor.comfort;
     setSpriteBackColor(discomfortStatusColor);
   } else {
@@ -366,29 +344,20 @@ void updateScreen(struct SensorValue latestSensorValue) {
   sprite.pushSprite(0, 0);
 
   // 寝室モードのとき輝度を落とす
-  if (bedroomModeFlg) {
+  if (configStore.getBedroomMode()) {
     M5.Lcd.setBrightness(5);
   } else {
     //backlightCntに応じて画面輝度を調節する
-    M5.Lcd.setBrightness((50 * backlightCnt) + 5);
+    M5.Lcd.setBrightness((50 * configStore.getBacklightLevel()) + 5);
   }
 }
 
-// バックライトの明度を操作する関数
-void adjustBacklight(int i) {
-  backlightCnt += i;
-  if (backlightCnt > 5) {
-    backlightCnt = 5;
-  } else if (backlightCnt < 0) {
-    backlightCnt = 0;
-  }
-}
 
 // LEDを点灯する関数
 void updateLedBar() {
   // LEDの点灯処理
   // 寝室モードのときのLED消灯処理
-  if (bedroomModeFlg) {
+  if (configStore.getBedroomMode()) {
     notifier.notify(notifier.NOTIFY_STATUS::NORMAL);
     return;
   }
@@ -399,35 +368,6 @@ void updateLedBar() {
   } else {
     notifier.notify(notifier.NOTIFY_STATUS::NORMAL);
   }
-}
-
-// 生成したJSONをSDカードに出力する関数
-void saveConfig() {
-  // 設定が変わっていないときの早期リターン
-  if ((tmpBacklightCnt == backlightCnt) && (tmpBedroomModeFlg == bedroomModeFlg)) {
-    return;
-  }
-  // configFile の定義
-  File configFile = SD.open("/config.txt", FILE_WRITE);
-
-  // 計測値を保存しておくJSON
-  DynamicJsonDocument measurement(1024);
-
-  // JSONに値を入力
-  measurement["backlightCnt"] = backlightCnt;
-  measurement["bedroomFlag"] = bedroomModeFlg;
-
-  // JSONのシリアライズ
-  String output;
-  serializeJson(measurement, output);
-
-  // SDカードへの書き込みと処理終了
-  configFile.println(output);
-  configFile.close();
-
-  // 現在の設定情報を一時保存
-  tmpBacklightCnt = backlightCnt;
-  tmpBedroomModeFlg = bedroomModeFlg;
 }
 
 void loop() {
@@ -462,18 +402,15 @@ void loop() {
 
   // ボタンで画面輝度調節
   if (M5.BtnA.wasPressed()) {
-    adjustBacklight(1);
+    configStore.adjustBacklightLevel(1);
   }
   if (M5.BtnC.wasPressed()) {
-    adjustBacklight(-1);
+    configStore.adjustBacklightLevel(-1);
   }
   // 寝室モードフラグのトグル
   if (M5.BtnB.wasPressed()) {
-    bedroomModeFlg = !bedroomModeFlg;
+    configStore.toggleBedroomMode();
   }
   // LEDバーでの表示
   updateLedBar();
-
-  // 生成した設定情報JSONをSDカードに出力する
-  saveConfig();
 }
