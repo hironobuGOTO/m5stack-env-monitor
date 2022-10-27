@@ -1,12 +1,8 @@
 #include "config.h"
+#include "notifier.h"
 #include <M5Stack.h>
 #include <WiFi.h>
 #include <map>
-
-#include <Adafruit_NeoPixel.h>
-#define PIN 15
-#define NUMPIXELS 10
-Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
 
 // 計測機用のライブラリ
 #include "M5_ENV.h"
@@ -20,11 +16,6 @@ SHT3X sht30;
 
 uint16_t eco2_base = 37335; //eCO2 baseline仮設定値
 uint16_t tvoc_base = 40910; //TVOC baseline仮設定値
-
-// ESP8266Audioライブラリ
-#include "AudioFileSourceSD.h"
-#include "AudioGeneratorMP3.h"
-#include "AudioOutputI2S.h"
 
 // 設定値をJSONに書き出す際に必要なライブラリ
 #include <ArduinoJson.h>
@@ -46,22 +37,6 @@ struct Eco2Threshold {
 };
 //eCO2濃度の構造体変数の宣言
 Eco2Threshold eco2Threshold;
-
-// 24bitカラーの構造体
-struct RGB {
-  int r;
-  int g;
-  int b;
-};
-
-// eCO2計測値の閾値を超えたときの警告色の構造体を定義
-struct Eco2ThresholdColor {
-  RGB attention = {255, 215, 0};
-  RGB caution = {255, 69, 0};
-  RGB normal = {0, 0, 0};
-};
-// eCO2用警告色の構造体変数の宣言
-Eco2ThresholdColor eco2ThresholdColor;
 
 // 不快指数が快適じゃないときの警告色の構造体を定義
 struct DiscomfortColor {
@@ -89,10 +64,6 @@ struct tm currentDateTime;
 // 寝室モードかを確認するフラグ(loop() の前後で保持するのでグローバルで保持)
 bool bedroomModeFlg = false;
 
-// 二酸化炭素濃度が高まった後下がるまで喋らないようにするフラグ(loop() の前後で保持するのでグローバルで保持)
-bool cautionFlg = false;
-bool attentionFlg = false;
-
 // 寝室モードかを判別するフラグ(loop() の前後で保持するのでグローバルで保持)
 bool tmpBedroomModeFlg;
 
@@ -104,6 +75,9 @@ int queueWroteTime = 0;
 
 // 最後にCSVに出力した時間を保管しておく変数 (loop() の前後で保持するのでグローバルで保持)
 int csvWroteTime = 0;
+
+// Notifier クラスのインスタンス化
+Notifier notifier;
 
 // Sprite クラスのインスタンス化
 TFT_eSprite sprite = TFT_eSprite(&M5.Lcd);
@@ -186,8 +160,7 @@ void setup() {
   // 基準値を設定しない場合はコメントアウト
   sgp.setIAQBaseline(eco2_base, tvoc_base);
 
-  // M5Stack側面LEDの起動
-  pixels.begin();
+
 
   // SGP30が動作するまで15秒起動中の表示を出す
   M5.Lcd.printf("\n  SGP30 waking");
@@ -411,61 +384,20 @@ void adjustBacklight(int i) {
   }
 }
 
-// updateLedBar () に必要な関数
-// LEDの色と輝度を操作する関数
-void setLedColor(RGB rgb, int brightness) {
-  for (int i = 0; i < NUMPIXELS; i++) {
-    pixels.setPixelColor(i, pixels.Color(rgb.r, rgb.g, rgb.b));
-    pixels.setBrightness(brightness);
-    pixels.show();
-  }
-}
-
-// MP3ファイルを再生する関数
-void playMp3(char *filename) {
-  // mp3ファイルの変数定義
-  AudioGeneratorMP3 *mp3 = new AudioGeneratorMP3();
-  AudioFileSourceSD *file = new AudioFileSourceSD(filename);;
-  AudioOutputI2S *out = new AudioOutputI2S(0, 1);
-
-  out->SetOutputModeMono(true);
-  out->SetGain(1.0);
-  mp3->begin(file, out);
-
-  // 音声ファイルが終了するまで他の処理を中断する
-  while (mp3->isRunning()) {
-    if (!mp3->loop()) mp3->stop();
-  }
-}
-
 // LEDを点灯する関数
 void updateLedBar() {
   // LEDの点灯処理
-  // 寝室モードのときのLED消灯処理と早期リターン
+  // 寝室モードのときのLED消灯処理
   if (bedroomModeFlg) {
-    setLedColor(eco2ThresholdColor.normal, 0);
+    notifier.notify(notifier.NOTIFY_STATUS::NORMAL);
     return;
   }
   if (sgp.eCO2 > eco2Threshold.caution) {
-    // 警告時のLED点灯と音声鳴動
-    setLedColor(eco2ThresholdColor.caution, 50);
-    if (!cautionFlg) {
-      //playMp3("/1500ppm.mp3");
-      cautionFlg = true;
-    }
+    notifier.notify(notifier.NOTIFY_STATUS::CAUTION);
   } else if (sgp.eCO2 > eco2Threshold.attention) {
-    // 注意時のLED点灯と音声鳴動
-    setLedColor(eco2ThresholdColor.attention, 25);
-    if (!attentionFlg) {
-      //playMp3("/1000ppm.mp3");
-      attentionFlg = true;
-      cautionFlg = false;
-    }
+    notifier.notify(notifier.NOTIFY_STATUS::ATTENTION);
   } else {
-    // 閾値以下のときのLED消灯処理
-    setLedColor(eco2ThresholdColor.normal, 0);
-    cautionFlg = false;
-    attentionFlg = false;
+    notifier.notify(notifier.NOTIFY_STATUS::NORMAL);
   }
 }
 
