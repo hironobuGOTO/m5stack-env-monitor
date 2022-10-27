@@ -125,6 +125,7 @@ void setup() {
   // LCD, SD, UART, I2C をそれぞれ初期化するかを指定して初期化する
   M5.begin(true, true, true, true);
   M5.Power.begin();
+
   //M5Stack の画面初期化
   M5.Lcd.fillScreen(TFT_BLACK);
   M5.Lcd.setTextFont(4);
@@ -142,6 +143,7 @@ void setup() {
   // SDカードに保存された設定情報を読み込み、初期値に反映させる
   File configFile = SD.open("/config.txt", FILE_READ);
   char configArray[configFile.size()];
+
   // 設定ファイルの読み込み (1文字ずつ)
   for (int i = 0; i < configFile.size(); i++) {
     configArray[i] = configFile.read();
@@ -157,6 +159,7 @@ void setup() {
 
   // Wi-Fiを起動してntpから現在時刻を取得する
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
   // Wi-Fi接続が完了するのを待つ
   M5.Lcd.printf("Connecting");
   while (WiFi.status() != WL_CONNECTED) {
@@ -175,13 +178,17 @@ void setup() {
     while (1);
   }
   sgp.softReset();
+
   // SGP30センサーのIAQアルゴリズムの初期化 softReset後必須
   sgp.IAQinit();
+
   // IAQ計算のためのキャリブレーションした基準値を要求し、結果をパラメータメモリに格納する。
   // 基準値を設定しない場合はコメントアウト
   sgp.setIAQBaseline(eco2_base, tvoc_base);
+
   // M5Stack側面LEDの起動
   pixels.begin();
+
   // SGP30が動作するまで15秒起動中の表示を出す
   M5.Lcd.printf("\n  SGP30 waking");
   for (int i = 0; i < 15; i++) {
@@ -211,8 +218,10 @@ uint32_t getAbsoluteHumidity(float temperature, float humidity) {
                                   * ((humidity / 100.0f) * 6.112f
                                      * exp((17.62f * temperature) / (243.12f + temperature))
                                      / (273.15f + temperature)); // [g/m^3]
+
   const uint32_t ABSOLUTE_HUMIDITY_SCALED = static_cast<uint32_t>(1000.0f
       * ABSOLUTE_HUMIDITY); // [mg/m^3]
+
   return ABSOLUTE_HUMIDITY_SCALED;
 }
 
@@ -220,6 +229,7 @@ uint32_t getAbsoluteHumidity(float temperature, float humidity) {
 void measureSensorValues(struct SensorValue& latestSensorValue) {
   //気圧を測定 (hPa に変換)
   latestSensorValue.pressure = bmp280.readPressure() / 100;
+
   //sht30 (温湿度センサー) にて、温湿度を測定
   if (sht30.get() == 0) {
     latestSensorValue.temperature = sht30.cTemp;
@@ -227,6 +237,7 @@ void measureSensorValues(struct SensorValue& latestSensorValue) {
   }
   //絶対湿度をSGP30にセット
   sgp.setHumidity(getAbsoluteHumidity(latestSensorValue.temperature, latestSensorValue.humidity));
+
   //eCO2 TVOC読込に失敗したときのエラー表示
   if (! sgp.IAQmeasure()) {
     Serial.println("Measurement failed");
@@ -259,6 +270,7 @@ void saveLog(struct SensorValue latestSensorValue) {
   bool getTime = getLocalTime(&currentDateTime);
   String measureDay = getDateString(currentDateTime);
   String measureTime = getTimeString(currentDateTime);
+
   // SDカードにログを追加する
   File measureValues = SD.open("/measure_values.csv", FILE_APPEND);
   measureValues.print(measureDay + "," + measureTime + "," + sgp.eCO2 + "," + sgp.TVOC + "," + latestSensorValue.temperature + "," + latestSensorValue.humidity + "," + latestSensorValue.pressure + "\n");
@@ -311,7 +323,7 @@ void updateScreen(struct SensorValue latestSensorValue) {
   // Bボタンが押されたとき、色を黒にする
   if (bedroomModeFlg) {
     discomfortStatusColor = discomfortColor.comfort;
-    setSpriteBackColor(discomfortColor.comfort);
+    setSpriteBackColor(discomfortStatusColor);
   } else {
     // 不快指数の計算
     const float DISCOMFORT_INDEX = ((0.81 * latestSensorValue.temperature) + ((0.01 * latestSensorValue.humidity) * ((0.99 * latestSensorValue.temperature) - 14.3)) + 46.3);
@@ -345,7 +357,6 @@ void updateScreen(struct SensorValue latestSensorValue) {
   if (compareEco2Value(comparisonEco2Value)) {
     setSpriteBackColor(discomfortStatusColor);
   }
-
   // 計測結果をスプライトに入力
   setSpriteMeasurement(sgp.TVOC, sgp.eCO2, latestSensorValue.pressure, latestSensorValue.temperature, latestSensorValue.humidity);
 
@@ -354,6 +365,7 @@ void updateScreen(struct SensorValue latestSensorValue) {
     int eco2Value = 0;
     int graphHeightEco2 = 0;
     bool peekIndex = eco2GraphValueList.peekIdx(&eco2Value, i);
+
     //eCO2が1500を超えたときグラフ最大値まで持っていく
     if (eco2Value > 1500) {
       graphHeightEco2 = 100;
@@ -377,7 +389,6 @@ void updateScreen(struct SensorValue latestSensorValue) {
   } else {
     sprite.fillRect(299, (240 - LATEST_GRAPH_HEIGHT_ECO2), 21, LATEST_GRAPH_HEIGHT_ECO2, TFT_RED);
   }
-
   // スプライトを画面に表示
   sprite.pushSprite(0, 0);
 
@@ -413,16 +424,14 @@ void setLedColor(RGB rgb, int brightness) {
 // MP3ファイルを再生する関数
 void playMp3(char *filename) {
   // mp3ファイルの変数定義
-  AudioGeneratorMP3 *mp3;
-  AudioFileSourceSD *file;
-  AudioOutputI2S *out;
+  AudioGeneratorMP3 *mp3 = new AudioGeneratorMP3();
+  AudioFileSourceSD *file = new AudioFileSourceSD(filename);;
+  AudioOutputI2S *out = new AudioOutputI2S(0, 1);
 
-  file = new AudioFileSourceSD(filename);
-  out = new AudioOutputI2S(0, 1);
   out->SetOutputModeMono(true);
   out->SetGain(1.0);
-  mp3 = new AudioGeneratorMP3();
   mp3->begin(file, out);
+
   // 音声ファイルが終了するまで他の処理を中断する
   while (mp3->isRunning()) {
     if (!mp3->loop()) mp3->stop();
@@ -432,90 +441,90 @@ void playMp3(char *filename) {
 // LEDを点灯する関数
 void updateLedBar() {
   // LEDの点灯処理
-  // 寝室モードのときのLED消灯処理
+  // 寝室モードのときのLED消灯処理と早期リターン
   if (bedroomModeFlg) {
     setLedColor(eco2ThresholdColor.normal, 0);
-    return ;
-  } else {
-    if (sgp.eCO2 > eco2Threshold.caution) {
-      // 警告時のLED点灯と音声鳴動
-      setLedColor(eco2ThresholdColor.caution, 50);
-      if (!cautionFlg) {
-        //playMp3("/1500ppm.mp3");
-        cautionFlg = true;
-      }
-    } else if (sgp.eCO2 > eco2Threshold.attention) {
-      // 注意時のLED点灯と音声鳴動
-      setLedColor(eco2ThresholdColor.attention, 25);
-      if (!attentionFlg) {
-        //playMp3("/1000ppm.mp3");
-        attentionFlg = true;
-        cautionFlg = false;
-      }
-    }  else {
-      // 閾値以下のときのLED消灯処理
-      setLedColor(eco2ThresholdColor.normal, 0);
-      cautionFlg = false;
-      attentionFlg = false;
+    return;
+  }
+  if (sgp.eCO2 > eco2Threshold.caution) {
+    // 警告時のLED点灯と音声鳴動
+    setLedColor(eco2ThresholdColor.caution, 50);
+    if (!cautionFlg) {
+      //playMp3("/1500ppm.mp3");
+      cautionFlg = true;
     }
+  } else if (sgp.eCO2 > eco2Threshold.attention) {
+    // 注意時のLED点灯と音声鳴動
+    setLedColor(eco2ThresholdColor.attention, 25);
+    if (!attentionFlg) {
+      //playMp3("/1000ppm.mp3");
+      attentionFlg = true;
+      cautionFlg = false;
+    }
+  } else {
+    // 閾値以下のときのLED消灯処理
+    setLedColor(eco2ThresholdColor.normal, 0);
+    cautionFlg = false;
+    attentionFlg = false;
   }
 }
 
 // 生成したJSONをSDカードに出力する関数
 void saveConfig() {
-  // 設定が変わったときのみ書き込む
+  // 設定が変わっていないときの早期リターン
   if ((tmpBacklightCnt == backlightCnt) && (tmpBedroomModeFlg == bedroomModeFlg)) {
     return;
-  } else {
-    // configFile の定義
-    File configFile = SD.open("/config.txt", FILE_WRITE);
-
-    // 計測値を保存しておくJSON
-    DynamicJsonDocument measurement(1024);
-
-    // JSONに値を入力
-    measurement["backlightCnt"] = backlightCnt;
-    measurement["bedroomFlag"] = bedroomModeFlg;
-
-    // JSONのシリアライズ
-    String output;
-    serializeJson(measurement, output);
-
-    // SDカードへの書き込みと処理終了
-    configFile.println(output);
-    configFile.close();
-
-    // 現在の設定情報を一時保存
-    tmpBacklightCnt = backlightCnt;
-    tmpBedroomModeFlg = bedroomModeFlg;
   }
+  // configFile の定義
+  File configFile = SD.open("/config.txt", FILE_WRITE);
+
+  // 計測値を保存しておくJSON
+  DynamicJsonDocument measurement(1024);
+
+  // JSONに値を入力
+  measurement["backlightCnt"] = backlightCnt;
+  measurement["bedroomFlag"] = bedroomModeFlg;
+
+  // JSONのシリアライズ
+  String output;
+  serializeJson(measurement, output);
+
+  // SDカードへの書き込みと処理終了
+  configFile.println(output);
+  configFile.close();
+
+  // 現在の設定情報を一時保存
+  tmpBacklightCnt = backlightCnt;
+  tmpBedroomModeFlg = bedroomModeFlg;
 }
 
 void loop() {
-  // 1秒ごとに本文を実行する
+  // 経過時間を表す elapsedTime変数の宣言と初期化
   unsigned long elapsedTime = millis();
+
+  // 1秒経過していないときに実行しない早期リターン
   if (elapsedTime < loopExcuteTime + 1000) {
-    return ;
+    return;
   }
   loopExcuteTime = elapsedTime;
+
   // 画面輝度調整の必須処理
   M5.update();
+
   // 計測
   struct SensorValue latestSensorValue = {0.0, 0.0, 0.0};
   measureSensorValues(latestSensorValue);
 
-  // 1時間に一回eCO2の値をリストに保存
+  // 1時間経過ごとにeCO2の値をリストに保存
   if (elapsedTime > queueWroteTime + 3600000) {
     setEco2GraphValueList();
     queueWroteTime = elapsedTime;
   }
-
   // 1分経過ごとにログを保存
   if (elapsedTime > csvWroteTime + 60000) {
     saveLog(latestSensorValue);
     csvWroteTime = elapsedTime;
   }
-
   // 画面表示
   updateScreen(latestSensorValue);
 
@@ -526,12 +535,10 @@ void loop() {
   if (M5.BtnC.wasPressed()) {
     adjustBacklight(-1);
   }
-
   // 寝室モードフラグのトグル
   if (M5.BtnB.wasPressed()) {
     bedroomModeFlg = !bedroomModeFlg;
   }
-
   // LEDバーでの表示
   updateLedBar();
 
