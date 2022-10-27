@@ -108,8 +108,18 @@ int csvWroteTime = 0;
 // Sprite クラスのインスタンス化
 TFT_eSprite sprite = TFT_eSprite(&M5.Lcd);
 
-// eCO2を棒グラフにするための配列
+// eCO2を棒グラフにするためのキュー配列
 cppQueue eco2GraphValueList(sizeof(int), 23, FIFO, true);
+
+
+// setup() 関数に必要な関数
+// Queueライブラリを使ったリストを初期化する関数
+void initializeEco2GraphValueList() {
+  const int MAPPED_VALUE = 400;
+  for (int i = 0; i <= 23; i++) {
+    eco2GraphValueList.push(&MAPPED_VALUE);
+  }
+}
 
 void setup() {
   // LCD, SD, UART, I2C をそれぞれ初期化するかを指定して初期化する
@@ -189,9 +199,11 @@ void setup() {
   sprite.createSprite(M5.Lcd.width(), M5.Lcd.height());
 
   // グラフ表示用のキューを初期化する関数を呼び出し
-  initializeEco2GraphValueList ();
+  initializeEco2GraphValueList();
 }
 
+// loop () 関数に必要な関数
+// measureSensorValues () に必要な関数
 //温度、相対湿度から絶対湿度を計算する関数
 uint32_t getAbsoluteHumidity(float temperature, float humidity) {
   // approximation formula from Sensirion SGP30 Driver Integration chapter 3.15
@@ -202,20 +214,6 @@ uint32_t getAbsoluteHumidity(float temperature, float humidity) {
   const uint32_t ABSOLUTE_HUMIDITY_SCALED = static_cast<uint32_t>(1000.0f
       * ABSOLUTE_HUMIDITY); // [mg/m^3]
   return ABSOLUTE_HUMIDITY_SCALED;
-}
-
-// LEDの色と輝度を操作する関数
-void setLedColor(RGB rgb, int brightness) {
-  for (int i = 0; i < NUMPIXELS; i++) {
-    pixels.setPixelColor(i, pixels.Color(rgb.r, rgb.g, rgb.b));
-    pixels.setBrightness(brightness);
-    pixels.show();
-  }
-}
-
-// 24bit color を 16bit color に変換する関数
-uint16_t getColor(uint8_t red, uint8_t green, uint8_t blue) {
-  return ((red >> 3) << 11) | ((green >> 2) << 5) | (blue >> 3);
 }
 
 // 各数値を計測する関数
@@ -235,26 +233,39 @@ void measureSensorValues(struct SensorValue& latestSensorValue) {
     while (1);
   }
 }
-// Queueライブラリを使ったリストを初期化する関数
-void initializeEco2GraphValueList () {
-  const int MAPPED_VALUE = 400;
-  for (int i = 0; i <= 23; i++) {
-    eco2GraphValueList.push(&MAPPED_VALUE);
-  }
-}
 
 // Queueライブラリを使ったリストに呼び出されるごとにeCO2値を保存する関数
-void setEco2GraphValueList () {
+void setEco2GraphValueList() {
   eco2GraphValueList.push(&sgp.eCO2);
 }
 
-// RGBが同じことを確かめる関数
-bool compareRGBEqual(struct RGB a, struct RGB b) {
-  return a.r == b.r &&
-         a.g == b.g &&
-         a.b == b.b;
+// saveLog () に必要な関数
+// tm オブジェクトから日付文字列 (例: "12/1") を返す関数
+String getDateString(struct tm currentDateTime) {
+  int month = currentDateTime.tm_mon + 1;
+  String dateString = String(month) + "/" + String(currentDateTime.tm_mday);
+  return dateString;
 }
 
+// tm オブジェクトから時刻文字列 (例: "00:00") を返す関数
+String getTimeString(struct tm currentDateTime) {
+  String timeString = String(currentDateTime.tm_hour) + ":" + String(currentDateTime.tm_min);
+  return timeString;
+}
+
+// 計測した値をSDカードに保存する関数
+void saveLog(struct SensorValue latestSensorValue) {
+  // ローカル時間を取得する
+  bool getTime = getLocalTime(&currentDateTime);
+  String measureDay = getDateString(currentDateTime);
+  String measureTime = getTimeString(currentDateTime);
+  // SDカードにログを追加する
+  File measureValues = SD.open("/measure_values.csv", FILE_APPEND);
+  measureValues.print(measureDay + "," + measureTime + "," + sgp.eCO2 + "," + sgp.TVOC + "," + latestSensorValue.temperature + "," + latestSensorValue.humidity + "," + latestSensorValue.pressure + "\n");
+  measureValues.close();
+}
+
+// updateScreen () に必要な関数
 // eCO2の値が前回計測したときから下回っていないことを確かめる関数
 bool compareEco2Value(int comparisonValue[]) {
   for (int i = 0; i < 23; i++) {
@@ -265,9 +276,22 @@ bool compareEco2Value(int comparisonValue[]) {
   return 0;
 }
 
+// setSpriteBackColor () に必要な関数
+// 24bit color を 16bit color に変換する関数
+uint16_t getColor(uint8_t red, uint8_t green, uint8_t blue) {
+  return ((red >> 3) << 11) | ((green >> 2) << 5) | (blue >> 3);
+}
+
 // 構造体を参照して背景色をスプライトに入力する関数
 void setSpriteBackColor(RGB rgb) {
   sprite.fillScreen(getColor(rgb.r, rgb.g, rgb.b));
+}
+
+// RGBが同じことを確かめる関数
+bool compareRGBEqual(struct RGB a, struct RGB b) {
+  return a.r == b.r &&
+         a.g == b.g &&
+         a.b == b.b;
 }
 
 // 計測結果をスプライトに入力する関数
@@ -376,6 +400,35 @@ void adjustBacklight(int i) {
   }
 }
 
+// updateLedBar () に必要な関数
+// LEDの色と輝度を操作する関数
+void setLedColor(RGB rgb, int brightness) {
+  for (int i = 0; i < NUMPIXELS; i++) {
+    pixels.setPixelColor(i, pixels.Color(rgb.r, rgb.g, rgb.b));
+    pixels.setBrightness(brightness);
+    pixels.show();
+  }
+}
+
+// MP3ファイルを再生する関数
+void playMp3(char *filename) {
+  // mp3ファイルの変数定義
+  AudioGeneratorMP3 *mp3;
+  AudioFileSourceSD *file;
+  AudioOutputI2S *out;
+
+  file = new AudioFileSourceSD(filename);
+  out = new AudioOutputI2S(0, 1);
+  out->SetOutputModeMono(true);
+  out->SetGain(1.0);
+  mp3 = new AudioGeneratorMP3();
+  mp3->begin(file, out);
+  // 音声ファイルが終了するまで他の処理を中断する
+  while (mp3->isRunning()) {
+    if (!mp3->loop()) mp3->stop();
+  }
+}
+
 // LEDを点灯する関数
 void updateLedBar() {
   // LEDの点灯処理
@@ -408,25 +461,6 @@ void updateLedBar() {
   }
 }
 
-// MP3ファイルを再生する関数
-void playMp3(char *filename) {
-  // mp3ファイルの変数定義
-  AudioGeneratorMP3 *mp3;
-  AudioFileSourceSD *file;
-  AudioOutputI2S *out;
-
-  file = new AudioFileSourceSD(filename);
-  out = new AudioOutputI2S(0, 1);
-  out->SetOutputModeMono(true);
-  out->SetGain(1.0);
-  mp3 = new AudioGeneratorMP3();
-  mp3->begin(file, out);
-  // 音声ファイルが終了するまで他の処理を中断する
-  while (mp3->isRunning()) {
-    if (!mp3->loop()) mp3->stop();
-  }
-}
-
 // 生成したJSONをSDカードに出力する関数
 void saveConfig() {
   // 設定が変わったときのみ書き込む
@@ -455,31 +489,6 @@ void saveConfig() {
     tmpBacklightCnt = backlightCnt;
     tmpBedroomModeFlg = bedroomModeFlg;
   }
-}
-
-// 計測した値をSDカードに保存する関数
-void saveLog(struct SensorValue latestSensorValue) {
-  // ローカル時間を取得する
-  bool getTime = getLocalTime(&currentDateTime);
-  String measureDay = getDateString(currentDateTime);
-  String measureTime = getTimeString(currentDateTime);
-  // SDカードにログを追加する
-  File measureValues = SD.open("/measure_values.csv", FILE_APPEND);
-  measureValues.print(measureDay + "," + measureTime + "," + sgp.eCO2 + "," + sgp.TVOC + "," + latestSensorValue.temperature + "," + latestSensorValue.humidity + "," + latestSensorValue.pressure + "\n");
-  measureValues.close();
-}
-
-// tm オブジェクトから日付文字列 (例: "12/1") を返す関数
-String getDateString(struct tm currentDateTime) {
-  int month = currentDateTime.tm_mon + 1;
-  String dateString = String(month) + "/" + String(currentDateTime.tm_mday);
-  return dateString;
-}
-
-// tm オブジェクトから時刻文字列 (例: "00:00") を返す関数
-String getTimeString(struct tm currentDateTime) {
-  String timeString = String(currentDateTime.tm_hour) + ":" + String(currentDateTime.tm_min);
-  return timeString;
 }
 
 void loop() {
