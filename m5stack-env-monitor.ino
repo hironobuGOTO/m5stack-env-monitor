@@ -24,13 +24,7 @@ uint16_t tvoc_base = 40910; //TVOC baseline仮設定値
 #include "config.h"
 #include "notifier.h"
 #include "config_store.h"
-
-// SHT30で計測した値の構造体
-struct SensorValue {
-  float temperature;
-  float humidity;
-  float pressure;
-};
+#include "logger.h"
 
 // SGP30で計測したeCO2濃度の閾値の構造体
 struct Eco2Threshold {
@@ -55,9 +49,6 @@ DiscomfortColor discomfortColor;
 // 不快指数の定義 (これの状態が変化したときに描画を変えるため、グローバルで保持)
 RGB discomfortStatusColor = discomfortColor.comfort;
 
-// 時間をtm型で取得する変数
-struct tm currentDateTime;
-
 // 最後に処理文を動かした時間を保管しておく変数 (loop() の前後で保持するのでグローバルで保持)
 int loopExcuteTime = 0;
 
@@ -72,6 +63,9 @@ Notifier notifier;
 
 // Config_store クラスのインスタンス化
 ConfigStore configStore;
+
+// Logger クラスのインスタンス化
+Logger logger;
 
 // Sprite クラスのインスタンス化
 TFT_eSprite sprite = TFT_eSprite(&M5.Lcd);
@@ -201,44 +195,6 @@ void setEco2GraphValueList() {
   eco2GraphValueList.push(&sgp.eCO2);
 }
 
-// saveLog () に必要な関数
-// tm オブジェクトから日付文字列 (例: "12/1") を返す関数
-String getDateString(struct tm currentDateTime) {
-  int month = currentDateTime.tm_mon + 1;
-  String dateString = String(month) + "/" + String(currentDateTime.tm_mday);
-  return dateString;
-}
-
-// tm オブジェクトから時刻文字列 (例: "00:00") を返す関数
-String getTimeString(struct tm currentDateTime) {
-  String timeString = String(currentDateTime.tm_hour) + ":" + String(currentDateTime.tm_min);
-  return timeString;
-}
-
-// 計測した値をSDカードに保存する関数
-void saveLog(struct SensorValue latestSensorValue) {
-  // ローカル時間を取得する
-  bool getTime = getLocalTime(&currentDateTime);
-  String measureDay = getDateString(currentDateTime);
-  String measureTime = getTimeString(currentDateTime);
-
-  // SDカードにログを追加する
-  File measureValues = SD.open("/measure_values.csv", FILE_APPEND);
-  measureValues.print(measureDay + "," + measureTime + "," + sgp.eCO2 + "," + sgp.TVOC + "," + latestSensorValue.temperature + "," + latestSensorValue.humidity + "," + latestSensorValue.pressure + "\n");
-  measureValues.close();
-}
-
-// updateScreen () に必要な関数
-// eCO2の値が前回計測したときから下回っていないことを確かめる関数
-bool compareEco2Value(int comparisonValue[]) {
-  for (int i = 0; i < 23; i++) {
-    if (comparisonValue[i] < comparisonValue[(i + 1)]) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
 // setSpriteBackColor () に必要な関数
 // 24bit color を 16bit color に変換する関数
 uint16_t getColor(uint8_t red, uint8_t green, uint8_t blue) {
@@ -267,6 +223,17 @@ void setSpriteMeasurement(int tvoc, int eco2, float pressure, float temperature,
   sprite.printf("TVOC: %4d ppb ", tvoc);
   sprite.setCursor(0, 100);
   sprite.printf("eCO2: %4d ppm ", eco2);
+}
+
+// updateScreen () に必要な関数
+// eCO2の値が前回計測したときから下回っていないことを確かめる関数
+bool compareEco2Value(int comparisonValue[]) {
+  for (int i = 0; i < 23; i++) {
+    if (comparisonValue[i] < comparisonValue[(i + 1)]) {
+      return 1;
+    }
+  }
+  return 0;
 }
 
 // 画面表示する関数
@@ -394,7 +361,7 @@ void loop() {
   }
   // 1分経過ごとにログを保存
   if (elapsedTime > csvWroteTime + 60000) {
-    saveLog(latestSensorValue);
+    logger.saveLog(latestSensorValue);
     csvWroteTime = elapsedTime;
   }
   // 画面表示
