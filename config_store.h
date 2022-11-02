@@ -53,7 +53,7 @@ class ConfigStore {
 
     // バックライトの輝度 (0〜5, 初期値は中央値)
     int backlightLevel = 2;
-    
+
     // 生成したJSONをSDカードに出力する関数
     void save() {
       // configFile の定義
