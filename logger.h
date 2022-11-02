@@ -29,7 +29,6 @@ class Logger {
     }
 
   private:
-
     // tm オブジェクトから日付文字列 (例: "12/1") を返す関数
     String getDateString(struct tm currentDateTime) {
       int month = currentDateTime.tm_mon + 1;
@@ -41,6 +40,5 @@ class Logger {
     String getTimeString(struct tm currentDateTime) {
       String timeString = String(currentDateTime.tm_hour) + ":" + String(currentDateTime.tm_min);
       return timeString;
-
     }
 };

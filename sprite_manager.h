@@ -28,17 +28,18 @@ DiscomfortColor discomfortColor;
 RGB discomfortStatusColor = discomfortColor.comfort;
 
 class SpriteManager {
+  
   public:
     SpriteManager() {
 
     }
 
     // 画面表示する関数
-    void updateScreen(struct SensorValue latestSensorValue) {
+    void update(struct SensorValue latestSensorValue) {
       // Bボタンが押されたとき、色を黒にする
       if (configStore.getBedroomMode()) {
         discomfortStatusColor = discomfortColor.comfort;
-        setSpriteBackColor(discomfortStatusColor);
+        setBackColor(discomfortStatusColor);
       } else {
         // 不快指数の計算
         const float DISCOMFORT_INDEX = ((0.81 * latestSensorValue.temperature) + ((0.01 * latestSensorValue.humidity) * ((0.99 * latestSensorValue.temperature) - 14.3)) + 46.3);
@@ -61,7 +62,7 @@ class SpriteManager {
         if (DISCOMFORT_INDEX >= 85 && !compareRGBEqual(discomfortStatusColor, discomfortColor.boiling)) {
           discomfortStatusColor = discomfortColor.boiling;
         }
-        setSpriteBackColor(discomfortStatusColor);
+        setBackColor(discomfortStatusColor);
       }
       // キューの値を配列に挿入
       int comparisonEco2Value[23];
@@ -70,10 +71,10 @@ class SpriteManager {
       }
       // グラフが下がっているとき、下がることを反映するためにグラフ領域を背景色で塗りつぶす
       if (compareEco2Value(comparisonEco2Value)) {
-        setSpriteBackColor(discomfortStatusColor);
+        setBackColor(discomfortStatusColor);
       }
       // 計測結果をスプライトに入力
-      setSpriteMeasurement(sgp.TVOC, sgp.eCO2, latestSensorValue.pressure, latestSensorValue.temperature, latestSensorValue.humidity);
+      setMeasurement(sgp.TVOC, sgp.eCO2, latestSensorValue.pressure, latestSensorValue.temperature, latestSensorValue.humidity);
 
       // 過去のキューに入れたeCO2値をグラフに描写
       for (int i = 0; i <= 23; i++) {
@@ -123,7 +124,7 @@ class SpriteManager {
     }
 
     // 構造体を参照して背景色をスプライトに入力する関数
-    void setSpriteBackColor(RGB rgb) {
+    void setBackColor(RGB rgb) {
       sprite.fillScreen(getColor(rgb.r, rgb.g, rgb.b));
     }
 
@@ -135,7 +136,7 @@ class SpriteManager {
     }
 
     // 計測結果をスプライトに入力する関数
-    void setSpriteMeasurement(int tvoc, int eco2, float pressure, float temperature, float humidity) {
+    void setMeasurement(int tvoc, int eco2, float pressure, float temperature, float humidity) {
       sprite.setCursor(0, 10);
       sprite.printf("Pres.: %4.1f hPa", pressure);
       sprite.setCursor(0, 40);

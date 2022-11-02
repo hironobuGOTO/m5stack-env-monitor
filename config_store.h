@@ -5,8 +5,8 @@ class ConfigStore {
 
     }
 
+    // SDカードに保存された設定情報を読み込み、初期値に反映させる関数
     void load() {
-      // SDカードに保存された設定情報を読み込み、初期値に反映させる
       File configFile = SD.open("/config.txt", FILE_READ);
       char configArray[configFile.size()];
 
@@ -24,10 +24,12 @@ class ConfigStore {
       isBedroomMode = configJson["bedroomFlag"];
     }
 
+    // バックライトの明度を取得する関数
     int getBacklightLevel() {
       return backlightLevel;
     }
 
+    // バックライトの明度を変更する関数
     void adjustBacklightLevel(int i) {
       backlightLevel += i;
       if (backlightLevel > 5) {
@@ -38,10 +40,12 @@ class ConfigStore {
       save();
     }
 
+    // 寝室モードかどうかを取得する関数
     boolean getBedroomMode() {
       return isBedroomMode;
     }
 
+    // 寝室モードかどうかを切り替える関数
     void toggleBedroomMode() {
       isBedroomMode = !isBedroomMode;
       save();
@@ -74,5 +78,4 @@ class ConfigStore {
       configFile.println(output);
       configFile.close();
     }
-
 };
