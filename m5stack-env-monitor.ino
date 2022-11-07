@@ -19,6 +19,7 @@ uint16_t tvoc_base = 40910; //TVOC baseline仮設定値
 #include <ArduinoJson.h>
 
 #include "config.h"
+#include "config_store.h"
 #include "notifier.h"
 #include "logger.h"
 #include "sprite_manager.h"
@@ -44,13 +45,13 @@ int csvWroteTime = 0;
 Notifier notifier;
 
 // Config_store クラスのインスタンス化
-//ConfigStore configStore;
+ConfigStore configStore;
 
 // Logger クラスのインスタンス化
 Logger logger;
 
 // SpriteManager クラスのインスタンス化
-SpriteManager spriteManager;
+SpriteManager spriteManager(configStore);
 
 // Queueライブラリを使ったリストを初期化する関数
 void initializeEco2GraphValueList() {
@@ -166,11 +167,6 @@ void measureSensorValues(struct SensorValue & latestSensorValue) {
   }
 }
 
-// 呼び出されるごとに、Queueライブラリを使ったリストにeCO2値を保存する関数
-void setEco2GraphValueList() {
-  eco2GraphValueList.push(&sgp.eCO2);
-}
-
 // LEDを点灯する関数
 void updateLedBar() {
   // LEDの点灯処理
@@ -207,7 +203,7 @@ void loop() {
 
   // 1時間経過ごとにeCO2の値をリストに保存
   if (elapsedTime > queueWroteTime + 1000) {
-    setEco2GraphValueList();
+    eco2GraphValueList.push(&sgp.eCO2);
     queueWroteTime = elapsedTime;
   }
   // 1分経過ごとにログを保存

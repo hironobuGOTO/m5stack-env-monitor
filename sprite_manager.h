@@ -1,11 +1,6 @@
 // 棒グラフを生成する配列をキューで処理するためのライブラリ
 #include <cppQueue.h>
 
-#include "config_store.h"
-
-// Config_store クラスのインスタンス化
-ConfigStore configStore;
-
 // Sprite クラスのインスタンス化
 TFT_eSprite sprite = TFT_eSprite(&M5.Lcd);
 
@@ -31,9 +26,7 @@ RGB discomfortStatusColor = discomfortColor.comfort;
 class SpriteManager {
   
   public:
-    SpriteManager() {
-
-    }
+    SpriteManager(ConfigStore &configStore):configStore(configStore){};
 
     // 画面表示する関数
     void updateScreen(struct SensorValue latestSensorValue) {
@@ -119,6 +112,9 @@ class SpriteManager {
     }
 
   private:
+
+    ConfigStore &configStore;
+    
     // 24bit color を 16bit color に変換する関数
     uint16_t getColor(uint8_t red, uint8_t green, uint8_t blue) {
       return ((red >> 3) << 11) | ((green >> 2) << 5) | (blue >> 3);
