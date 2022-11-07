@@ -21,6 +21,7 @@ struct DiscomfortColor {
   RGB hot = {255, 140, 0};
   RGB boiling = {255, 127, 80};
 };
+
 // 不快指数用警告色の構造体変数の宣言
 DiscomfortColor discomfortColor;
 
@@ -35,7 +36,7 @@ class SpriteManager {
     }
 
     // 画面表示する関数
-    void update(struct SensorValue latestSensorValue) {
+    void updateScreen(struct SensorValue latestSensorValue) {
       // Bボタンが押されたとき、色を黒にする
       if (configStore.getBedroomMode()) {
         discomfortStatusColor = discomfortColor.comfort;
@@ -146,7 +147,6 @@ class SpriteManager {
       sprite.setCursor(0, 100);
       sprite.printf("eCO2: %4d ppm ", eco2);
     }
-
 
     // eCO2の値が前回計測したときから下回っていないことを確かめる関数
     bool compareEco2Value(int comparisonValue[]) {

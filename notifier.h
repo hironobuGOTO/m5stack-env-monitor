@@ -20,6 +20,7 @@ struct Eco2ThresholdColor {
   RGB caution = {255, 69, 0};
   RGB normal = {0, 0, 0};
 };
+
 // eCO2用警告色の構造体変数の宣言
 Eco2ThresholdColor eco2ThresholdColor;
 
@@ -75,7 +76,6 @@ class Notifier {
         pixels.show();
       }
     }
-
 
     // MP3ファイルを再生する関数
     void playMp3(char *filename) {

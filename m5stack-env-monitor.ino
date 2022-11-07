@@ -20,7 +20,6 @@ uint16_t tvoc_base = 40910; //TVOC baseline仮設定値
 
 #include "config.h"
 #include "notifier.h"
-//#include "config_store.h"
 #include "logger.h"
 #include "sprite_manager.h"
 
@@ -53,7 +52,6 @@ Logger logger;
 // SpriteManager クラスのインスタンス化
 SpriteManager spriteManager;
 
-// setup() 関数に必要な関数
 // Queueライブラリを使ったリストを初期化する関数
 void initializeEco2GraphValueList() {
   const int MAPPED_VALUE = 400;
@@ -133,7 +131,6 @@ void setup() {
   initializeEco2GraphValueList();
 }
 
-// loop () 関数に必要な関数
 // measureSensorValues () に必要な関数
 //温度、相対湿度から絶対湿度を計算する関数
 uint32_t getAbsoluteHumidity(float temperature, float humidity) {
@@ -169,7 +166,7 @@ void measureSensorValues(struct SensorValue & latestSensorValue) {
   }
 }
 
-// Queueライブラリを使ったリストに呼び出されるごとにeCO2値を保存する関数
+// 呼び出されるごとに、Queueライブラリを使ったリストにeCO2値を保存する関数
 void setEco2GraphValueList() {
   eco2GraphValueList.push(&sgp.eCO2);
 }
