@@ -24,9 +24,19 @@ DiscomfortColor discomfortColor;
 RGB discomfortStatusColor = discomfortColor.comfort;
 
 class SpriteManager {
-  
+
   public:
-    SpriteManager(ConfigStore &configStore):configStore(configStore){};
+    SpriteManager(ConfigStore &configStore): configStore(configStore) {
+      // グラフ表示用のキューを初期化する関数を呼び出し
+      initializeEco2GraphValueList();
+    };
+    // スプライトの作成
+    void initSprite() {
+      sprite.setColorDepth(8);
+      sprite.setTextFont(4);
+      sprite.setTextSize(1);
+      sprite.createSprite(M5.Lcd.width(), M5.Lcd.height());
+    }
 
     // 画面表示する関数
     void updateScreen(struct SensorValue latestSensorValue) {
@@ -114,7 +124,15 @@ class SpriteManager {
   private:
 
     ConfigStore &configStore;
-    
+
+    // Queueライブラリを使ったリストを初期化する関数
+    void initializeEco2GraphValueList() {
+      const int MAPPED_VALUE = 400;
+      for (int i = 0; i <= 23; i++) {
+        eco2GraphValueList.push(&MAPPED_VALUE);
+      }
+    }
+
     // 24bit color を 16bit color に変換する関数
     uint16_t getColor(uint8_t red, uint8_t green, uint8_t blue) {
       return ((red >> 3) << 11) | ((green >> 2) << 5) | (blue >> 3);

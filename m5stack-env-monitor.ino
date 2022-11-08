@@ -1,5 +1,4 @@
 #include <M5Stack.h>
-#include <WiFi.h>
 #include <map>
 
 // 計測機用のライブラリ
@@ -18,7 +17,6 @@ uint16_t tvoc_base = 40910; //TVOC baseline仮設定値
 // 設定値をJSONに書き出す際に必要なライブラリ
 #include <ArduinoJson.h>
 
-#include "config.h"
 #include "config_store.h"
 #include "notifier.h"
 #include "logger.h"
@@ -53,18 +51,13 @@ Logger logger;
 // SpriteManager クラスのインスタンス化
 SpriteManager spriteManager(configStore);
 
-// Queueライブラリを使ったリストを初期化する関数
-void initializeEco2GraphValueList() {
-  const int MAPPED_VALUE = 400;
-  for (int i = 0; i <= 23; i++) {
-    eco2GraphValueList.push(&MAPPED_VALUE);
-  }
-}
-
-void setup() {
+void initM5stack() {
   // LCD, SD, UART, I2C をそれぞれ初期化するかを指定して初期化する
   M5.begin(true, true, true, true);
   M5.Power.begin();
+  // シリアル通信初期化
+  Serial.begin(9600);
+  Serial.println("M5.began");
 
   //M5Stack の画面初期化
   M5.Lcd.fillScreen(TFT_BLACK);
@@ -79,22 +72,9 @@ void setup() {
     M5.Lcd.println("Card failed, or not present");
     while (1);
   }
+}
 
-  // Wi-Fiを起動してntpから現在時刻を取得する
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-  // Wi-Fi接続が完了するのを待つ
-  M5.Lcd.printf("Connecting");
-  while (WiFi.status() != WL_CONNECTED) {
-    M5.Lcd.printf(".");
-    delay(1000);
-  }
-  // 時刻の補正
-  configTime(9 * 3600L, 0, "ntp.nict.jp", "time.google.com", "ntp.jst.mfeed.ad.jp");
-
-  // シリアル通信初期化
-  Serial.begin(9600);
-
+void initSgp30() {
   // SGP30 が初期化できなかったとき、エラーを返す
   if (!sgp.begin()) {
     Serial.println("Sensor not found :(");
@@ -115,6 +95,15 @@ void setup() {
     M5.Lcd.printf(".");
     delay(1000);
   }
+}
+
+void setup() {
+  initM5stack();
+
+  initSgp30();
+
+  logger.correctTime();
+
   // BMP280 が初期化できなかったとき、エラーを返す
   while (!bmp280.begin(0x76)) {
     M5.Lcd.println("Could not find a valid BMP280 sensor, check wiring!");
@@ -122,14 +111,7 @@ void setup() {
   // 初期値の呼び出し
   configStore.load();
 
-  // スプライトの作成
-  sprite.setColorDepth(8);
-  sprite.setTextFont(4);
-  sprite.setTextSize(1);
-  sprite.createSprite(M5.Lcd.width(), M5.Lcd.height());
-
-  // グラフ表示用のキューを初期化する関数を呼び出し
-  initializeEco2GraphValueList();
+  spriteManager.initSprite();
 }
 
 // measureSensorValues () に必要な関数
@@ -202,7 +184,7 @@ void loop() {
   measureSensorValues(latestSensorValue);
 
   // 1時間経過ごとにeCO2の値をリストに保存
-  if (elapsedTime > queueWroteTime + 1000) {
+  if (elapsedTime > queueWroteTime + 3600000) {
     eco2GraphValueList.push(&sgp.eCO2);
     queueWroteTime = elapsedTime;
   }

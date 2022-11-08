@@ -2,7 +2,7 @@ class ConfigStore {
 
   public:
     ConfigStore() {
-
+ 
     }
 
     // SDカードに保存された設定情報を読み込み、初期値に反映させる関数

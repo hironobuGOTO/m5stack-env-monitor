@@ -1,3 +1,7 @@
+#include <WiFi.h>
+
+#include "config.h"
+
 // 時間をtm型で取得する変数
 struct tm currentDateTime;
 
@@ -13,6 +17,20 @@ class Logger {
   public:
     Logger () {
 
+    }
+    //Wifi接続し、M5Stackの時計を補正する関数
+    void correctTime() {
+      // Wi-Fiを起動してntpから現在時刻を取得する
+      WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+      // Wi-Fi接続が完了するのを待つ
+      M5.Lcd.printf("Connecting");
+      while (WiFi.status() != WL_CONNECTED) {
+        M5.Lcd.printf(".");
+        delay(1000);
+      }
+      // 時刻の補正
+      configTime(9 * 3600L, 0, "ntp.nict.jp", "time.google.com", "ntp.jst.mfeed.ad.jp");
     }
 
     // 計測した値をSDカードに保存する関数
