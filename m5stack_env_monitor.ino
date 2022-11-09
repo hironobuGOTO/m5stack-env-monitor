@@ -101,14 +101,14 @@ void setup() {
   initM5stack();
 
   initSgp30();
-
-  logger.correctTime();
-
+  
   // BMP280 が初期化できなかったとき、エラーを返す
   while (!bmp280.begin(0x76)) {
     M5.Lcd.println("Could not find a valid BMP280 sensor, check wiring!");
   }
-  // 初期値の呼び出し
+  logger.correctTime();
+
+  // SDカードに保存されている初期値の呼び出し
   configStore.load();
 
   spriteManager.initSprite();

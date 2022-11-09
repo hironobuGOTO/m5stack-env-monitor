@@ -26,7 +26,9 @@ RGB discomfortStatusColor = discomfortColor.comfort;
 class SpriteManager {
 
   public:
-    SpriteManager(ConfigStore &configStore): configStore(configStore) {
+    // コンストラクタで引数として本文configStoreインスタンスからconfigStore_として取得する
+    // コロンの後のconfigStoreはprivate領域のインスタンスへの参照を表す
+    SpriteManager(ConfigStore &configStore_): configStore(configStore_) {
       // グラフ表示用のキューを初期化する関数を呼び出し
       initializeEco2GraphValueList();
     };
@@ -122,7 +124,7 @@ class SpriteManager {
     }
 
   private:
-
+    // コンストラクタで参照先を埋める本文configStoreへの参照
     ConfigStore &configStore;
 
     // Queueライブラリを使ったリストを初期化する関数
