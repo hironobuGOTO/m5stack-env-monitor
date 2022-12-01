@@ -37,7 +37,7 @@ class Notifier {
       // M5Stack側面LEDの起動
       pixels.begin();
     }
-
+    // eCO2の値による警告処理
     void notify(NOTIFY_STATUS status) {
       if (status == NORMAL) {
         // 閾値以下のときのLED消灯処理

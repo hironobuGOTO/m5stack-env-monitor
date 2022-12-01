@@ -23,6 +23,9 @@ DiscomfortColor discomfortColor;
 // 不快指数の定義 (これの状態が変化したときに描画を変えるため、グローバルで保持)
 RGB discomfortStatusColor = discomfortColor.comfort;
 
+const int MAX_GRAPH_VALUE = 1500;
+const int MAX_GRAPH_HEIGHT = 100;
+
 class SpriteManager {
 
   public:
@@ -47,28 +50,7 @@ class SpriteManager {
         discomfortStatusColor = discomfortColor.comfort;
         setBackColor(discomfortStatusColor);
       } else {
-        // 不快指数の計算
-        const float DISCOMFORT_INDEX = ((0.81 * latestSensorValue.temperature) + ((0.01 * latestSensorValue.humidity) * ((0.99 * latestSensorValue.temperature) - 14.3)) + 46.3);
-        // 不快指数の画面表示
-        if (DISCOMFORT_INDEX < 55 && !compareRGBEqual(discomfortStatusColor, discomfortColor.cold)) {
-          discomfortStatusColor = discomfortColor.cold;
-        }
-        if (DISCOMFORT_INDEX < 60 && DISCOMFORT_INDEX >= 55 && !compareRGBEqual(discomfortStatusColor, discomfortColor.chilly)) {
-          discomfortStatusColor = discomfortColor.chilly;
-        }
-        if (DISCOMFORT_INDEX < 75 && DISCOMFORT_INDEX >= 60 && !compareRGBEqual(discomfortStatusColor, discomfortColor.comfort)) {
-          discomfortStatusColor = discomfortColor.comfort;
-        }
-        if (DISCOMFORT_INDEX < 80 && DISCOMFORT_INDEX >= 75 && !compareRGBEqual(discomfortStatusColor, discomfortColor.warm)) {
-          discomfortStatusColor = discomfortColor.warm;
-        }
-        if (DISCOMFORT_INDEX < 85 && DISCOMFORT_INDEX >= 80 && !compareRGBEqual(discomfortStatusColor, discomfortColor.hot)) {
-          discomfortStatusColor = discomfortColor.hot;
-        }
-        if (DISCOMFORT_INDEX >= 85 && !compareRGBEqual(discomfortStatusColor, discomfortColor.boiling)) {
-          discomfortStatusColor = discomfortColor.boiling;
-        }
-        setBackColor(discomfortStatusColor);
+        discomfortStatusColor = calcDiscomfortColor(latestSensorValue);
       }
       // キューの値を配列に挿入
       int comparisonEco2Value[23];
@@ -86,14 +68,15 @@ class SpriteManager {
       for (int i = 0; i <= 23; i++) {
         int eco2Value = 0;
         int graphHeightEco2 = 0;
-        bool peekIndex = eco2GraphValueList.peekIdx(&eco2Value, i);
+        boolean peekIndex = eco2GraphValueList.peekIdx(&eco2Value, i);
 
-        //eCO2が1500を超えたときグラフ最大値まで持っていく
-        if (eco2Value > 1500) {
-          graphHeightEco2 = 100;
+        //eCO2がグラフの最大値を超えたときグラフ最大値を超えないようにする
+        if (eco2Value > MAX_GRAPH_VALUE) {
+          graphHeightEco2 = MAX_GRAPH_HEIGHT;
         } else {
-          graphHeightEco2 = map(eco2Value, 0, 1500, 1, 100);
+          graphHeightEco2 = map(eco2Value, 0, MAX_GRAPH_VALUE, 1, MAX_GRAPH_HEIGHT);
         }
+        // グラフにeCO2値に応じた色付けする
         if (graphHeightEco2 < 67) {
           sprite.fillRect((i * 13), (240 - graphHeightEco2), 13, graphHeightEco2, TFT_GREEN);
         } else if (graphHeightEco2 < 99) {
@@ -103,7 +86,7 @@ class SpriteManager {
         }
       }
       // 現在のeCO2値をグラフに描写
-      const int LATEST_GRAPH_HEIGHT_ECO2 = map((int)sgp.eCO2, 0, 1500, 1, 100);
+      const int LATEST_GRAPH_HEIGHT_ECO2 = map((int)sgp.eCO2, 0, MAX_GRAPH_VALUE, 1, MAX_GRAPH_HEIGHT);
       if (LATEST_GRAPH_HEIGHT_ECO2 < 67) {
         sprite.fillRect(299, (240 - LATEST_GRAPH_HEIGHT_ECO2), 21, LATEST_GRAPH_HEIGHT_ECO2, TFT_GREEN);
       } else if (LATEST_GRAPH_HEIGHT_ECO2 < 99) {
@@ -146,7 +129,7 @@ class SpriteManager {
     }
 
     // RGBが同じことを確かめる関数
-    bool compareRGBEqual(struct RGB a, struct RGB b) {
+    boolean compareRGBEqual(struct RGB a, struct RGB b) {
       return a.r == b.r &&
              a.g == b.g &&
              a.b == b.b;
@@ -165,12 +148,39 @@ class SpriteManager {
     }
 
     // eCO2の値が前回計測したときから下回っていないことを確かめる関数
-    bool compareEco2Value(int comparisonValue[]) {
+    boolean compareEco2Value(int comparisonValue[]) {
       for (int i = 0; i < 23; i++) {
         if (comparisonValue[i] < comparisonValue[(i + 1)]) {
           return 1;
         }
       }
       return 0;
+    }
+
+    // 不快指数を計算して、表示する色を返す関数
+    RGB calcDiscomfortColor(struct SensorValue sensorValue) {
+      // 不快指数の計算
+      const float DISCOMFORT_INDEX = ((0.81 * sensorValue.temperature) + ((0.01 * sensorValue.humidity) * ((0.99 * sensorValue.temperature) - 14.3)) + 46.3);
+      // 不快指数の画面表示
+      if (DISCOMFORT_INDEX < 55 && !compareRGBEqual(discomfortStatusColor, discomfortColor.cold)) {
+        discomfortStatusColor = discomfortColor.cold;
+      }
+      if (DISCOMFORT_INDEX < 60 && DISCOMFORT_INDEX >= 55 && !compareRGBEqual(discomfortStatusColor, discomfortColor.chilly)) {
+        discomfortStatusColor = discomfortColor.chilly;
+      }
+      if (DISCOMFORT_INDEX < 75 && DISCOMFORT_INDEX >= 60 && !compareRGBEqual(discomfortStatusColor, discomfortColor.comfort)) {
+        discomfortStatusColor = discomfortColor.comfort;
+      }
+      if (DISCOMFORT_INDEX < 80 && DISCOMFORT_INDEX >= 75 && !compareRGBEqual(discomfortStatusColor, discomfortColor.warm)) {
+        discomfortStatusColor = discomfortColor.warm;
+      }
+      if (DISCOMFORT_INDEX < 85 && DISCOMFORT_INDEX >= 80 && !compareRGBEqual(discomfortStatusColor, discomfortColor.hot)) {
+        discomfortStatusColor = discomfortColor.hot;
+      }
+      if (DISCOMFORT_INDEX >= 85 && !compareRGBEqual(discomfortStatusColor, discomfortColor.boiling)) {
+        discomfortStatusColor = discomfortColor.boiling;
+      }
+      setBackColor(discomfortStatusColor);
+      return discomfortStatusColor;
     }
 };

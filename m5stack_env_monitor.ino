@@ -7,8 +7,11 @@
 #include <Adafruit_BMP280.h>
 #include "Adafruit_Sensor.h"
 
+// eCO2, TVOCセンサーのインスタンス化
 Adafruit_SGP30 sgp;
+// 大気圧センサーのインスタンス化
 Adafruit_BMP280 bmp280;
+// 温湿度センサーのインスタンス化
 SHT3X sht30;
 
 uint16_t eco2_base = 37335; //eCO2 baseline仮設定値
@@ -24,8 +27,8 @@ uint16_t tvoc_base = 40910; //TVOC baseline仮設定値
 
 // SGP30で計測したeCO2濃度の閾値の構造体
 struct Eco2Threshold {
-  int attention = 1000;
-  int caution = 1500;
+  const int ATTENTION = 1000;
+  const int CAUTION = 1500;
 };
 //eCO2濃度の構造体変数の宣言
 Eco2Threshold eco2Threshold;
@@ -38,6 +41,15 @@ int queueWroteTime = 0;
 
 // 最後にCSVに出力した時間を保管しておく変数 (loop() の前後で保持するのでグローバルで保持)
 int csvWroteTime = 0;
+
+// 画面の更新間隔
+const int DISPLAY_REFLESH_TIME = 1000;
+
+// グラフの更新間隔
+const int GRAPH_REFLESH_TIME = 3600000;
+
+// センサー計測値の保存間隔
+const int SAVE_MEASURE_VALUE_TIME = 60000;
 
 // Notifier クラスのインスタンス化
 Notifier notifier;
@@ -157,9 +169,9 @@ void updateLedBar() {
     notifier.notify(notifier.NOTIFY_STATUS::NORMAL);
     return;
   }
-  if (sgp.eCO2 > eco2Threshold.caution) {
+  if (sgp.eCO2 > eco2Threshold.CAUTION) {
     notifier.notify(notifier.NOTIFY_STATUS::CAUTION);
-  } else if (sgp.eCO2 > eco2Threshold.attention) {
+  } else if (sgp.eCO2 > eco2Threshold.ATTENTION) {
     notifier.notify(notifier.NOTIFY_STATUS::ATTENTION);
   } else {
     notifier.notify(notifier.NOTIFY_STATUS::NORMAL);
@@ -170,8 +182,8 @@ void loop() {
   // 経過時間を表す elapsedTime変数の宣言と初期化
   unsigned long elapsedTime = millis();
 
-  // 1秒経過していないときに実行しない早期リターン
-  if (elapsedTime < loopExcuteTime + 1000) {
+  // 更新間隔秒秒経過していないときに実行しない早期リターン
+  if (elapsedTime < loopExcuteTime + DISPLAY_REFLESH_TIME) {
     return;
   }
   loopExcuteTime = elapsedTime;
@@ -179,24 +191,24 @@ void loop() {
   // 画面輝度調整の必須処理
   M5.update();
 
-  // 計測
+  // 最新の温湿度、大気圧の計測
   struct SensorValue latestSensorValue = {0.0, 0.0, 0.0};
   measureSensorValues(latestSensorValue);
 
-  // 1時間経過ごとにeCO2の値をリストに保存
-  if (elapsedTime > queueWroteTime + 3600000) {
+  // 定数間隔(GRAPH_REFLESH_TIME)ごとにeCO2の値をグラフ用キューに保存
+  if (elapsedTime > queueWroteTime + GRAPH_REFLESH_TIME) {
     eco2GraphValueList.push(&sgp.eCO2);
     queueWroteTime = elapsedTime;
   }
-  // 1分経過ごとにログを保存
-  if (elapsedTime > csvWroteTime + 60000) {
-    logger.saveLog(latestSensorValue);
+  // 定数間隔(SAVE_MEASURE_VALUE_TIME)ごとに計測結果ログをSDカード内CSVに保存
+  if (elapsedTime > csvWroteTime + SAVE_MEASURE_VALUE_TIME) {
+    logger.saveSensorValue(latestSensorValue);
     csvWroteTime = elapsedTime;
   }
   // 画面表示
   spriteManager.updateScreen(latestSensorValue);
 
-  // ボタンで画面輝度調節
+  // ボタンAとCで画面輝度調節
   if (M5.BtnA.wasPressed()) {
     configStore.adjustBacklightLevel(1);
   }

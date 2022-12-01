@@ -52,7 +52,7 @@ class ConfigStore {
     }
 
   private:
-    // 寝室モードか
+    // 寝室モードかを保持する変数
     boolean isBedroomMode = false;
 
     // バックライトの輝度 (0〜5, 初期値は中央値)

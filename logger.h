@@ -34,13 +34,13 @@ class Logger {
     }
 
     // 計測した値をSDカードに保存する関数
-    void saveLog(struct SensorValue latestSensorValue) {
+    void saveSensorValue(struct SensorValue latestSensorValue) {
       // ローカル時間を取得する
-      bool getTime = getLocalTime(&currentDateTime);
+      boolean getTime = getLocalTime(&currentDateTime);
       String measureDay = getDateString(currentDateTime);
       String measureTime = getTimeString(currentDateTime);
 
-      // SDカードにログを追加する
+      // SDカードに計測値を追加する
       File measureValues = SD.open("/measure_values.csv", FILE_APPEND);
       measureValues.print(measureDay + "," + measureTime + "," + sgp.eCO2 + "," + sgp.TVOC + "," + latestSensorValue.temperature + "," + latestSensorValue.humidity + "," + latestSensorValue.pressure + "\n");
       measureValues.close();
