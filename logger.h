@@ -42,7 +42,15 @@ class Logger {
 
       // SDカードに計測値を追加する
       File measureValues = SD.open("/measure_values.csv", FILE_APPEND);
-      measureValues.print(measureDay + "," + measureTime + "," + sgp.eCO2 + "," + sgp.TVOC + "," + latestSensorValue.temperature + "," + latestSensorValue.humidity + "," + latestSensorValue.pressure + "\n");
+      measureValues.print(
+        measureDay + ","
+        + measureTime + ","
+        + sgp.eCO2 + ","
+        + sgp.TVOC + ","
+        + latestSensorValue.temperature + ","
+        + latestSensorValue.humidity + ","
+        + latestSensorValue.pressure + "\n"
+      );
       measureValues.close();
     }
 

@@ -64,36 +64,9 @@ class SpriteManager {
       // 計測結果をスプライトに入力
       setMeasurement(sgp.TVOC, sgp.eCO2, latestSensorValue.pressure, latestSensorValue.temperature, latestSensorValue.humidity);
 
-      // 過去のキューに入れたeCO2値をグラフに描写
-      for (int i = 0; i <= 23; i++) {
-        int eco2Value = 0;
-        int graphHeightEco2 = 0;
-        boolean peekIndex = eco2GraphValueList.peekIdx(&eco2Value, i);
+      // eCO2濃度をグラフ化してスプライトに入力
+      setMeasureValueGraph();
 
-        //eCO2がグラフの最大値を超えたときグラフ最大値を超えないようにする
-        if (eco2Value > MAX_GRAPH_VALUE) {
-          graphHeightEco2 = MAX_GRAPH_HEIGHT;
-        } else {
-          graphHeightEco2 = map(eco2Value, 0, MAX_GRAPH_VALUE, 1, MAX_GRAPH_HEIGHT);
-        }
-        // グラフにeCO2値に応じた色付けする
-        if (graphHeightEco2 < 67) {
-          sprite.fillRect((i * 13), (240 - graphHeightEco2), 13, graphHeightEco2, TFT_GREEN);
-        } else if (graphHeightEco2 < 99) {
-          sprite.fillRect((i * 13), (240 - graphHeightEco2), 13, graphHeightEco2, TFT_YELLOW);
-        } else {
-          sprite.fillRect((i * 13), (240 - graphHeightEco2), 13, graphHeightEco2, TFT_RED);
-        }
-      }
-      // 現在のeCO2値をグラフに描写
-      const int LATEST_GRAPH_HEIGHT_ECO2 = map((int)sgp.eCO2, 0, MAX_GRAPH_VALUE, 1, MAX_GRAPH_HEIGHT);
-      if (LATEST_GRAPH_HEIGHT_ECO2 < 67) {
-        sprite.fillRect(299, (240 - LATEST_GRAPH_HEIGHT_ECO2), 21, LATEST_GRAPH_HEIGHT_ECO2, TFT_GREEN);
-      } else if (LATEST_GRAPH_HEIGHT_ECO2 < 99) {
-        sprite.fillRect(299, (240 - LATEST_GRAPH_HEIGHT_ECO2), 21, LATEST_GRAPH_HEIGHT_ECO2, TFT_YELLOW);
-      } else {
-        sprite.fillRect(299, (240 - LATEST_GRAPH_HEIGHT_ECO2), 21, LATEST_GRAPH_HEIGHT_ECO2, TFT_RED);
-      }
       // スプライトを画面に表示
       sprite.pushSprite(0, 0);
 
@@ -160,7 +133,12 @@ class SpriteManager {
     // 不快指数を計算して、表示する色を返す関数
     RGB calcDiscomfortColor(struct SensorValue sensorValue) {
       // 不快指数の計算
-      const float DISCOMFORT_INDEX = ((0.81 * sensorValue.temperature) + ((0.01 * sensorValue.humidity) * ((0.99 * sensorValue.temperature) - 14.3)) + 46.3);
+      const float DISCOMFORT_INDEX = (
+                                       (0.81 * sensorValue.temperature)
+                                       + ((0.01 * sensorValue.humidity)
+                                          * ((0.99 * sensorValue.temperature) - 14.3))
+                                       + 46.3
+                                     );
       // 不快指数の画面表示
       if (DISCOMFORT_INDEX < 55 && !compareRGBEqual(discomfortStatusColor, discomfortColor.cold)) {
         discomfortStatusColor = discomfortColor.cold;
@@ -182,5 +160,39 @@ class SpriteManager {
       }
       setBackColor(discomfortStatusColor);
       return discomfortStatusColor;
+    }
+
+    // グラフをスプライトに入力する関数
+    void setMeasureValueGraph() {
+      // 過去のキューに入れたeCO2値をグラフに描写
+      for (int i = 0; i <= 23; i++) {
+        int eco2Value = 0;
+        int graphHeightEco2 = 0;
+        boolean peekIndex = eco2GraphValueList.peekIdx(&eco2Value, i);
+
+        //eCO2がグラフの最大値を超えたときグラフ最大値を超えないようにする
+        if (eco2Value > MAX_GRAPH_VALUE) {
+          graphHeightEco2 = MAX_GRAPH_HEIGHT;
+        } else {
+          graphHeightEco2 = map(eco2Value, 0, MAX_GRAPH_VALUE, 1, MAX_GRAPH_HEIGHT);
+        }
+        // グラフにeCO2値に応じた色付けする
+        if (graphHeightEco2 < 67) {
+          sprite.fillRect((i * 13), (240 - graphHeightEco2), 13, graphHeightEco2, TFT_GREEN);
+        } else if (graphHeightEco2 < 99) {
+          sprite.fillRect((i * 13), (240 - graphHeightEco2), 13, graphHeightEco2, TFT_YELLOW);
+        } else {
+          sprite.fillRect((i * 13), (240 - graphHeightEco2), 13, graphHeightEco2, TFT_RED);
+        }
+      }
+      // 現在のeCO2値をグラフに描写
+      const int LATEST_GRAPH_HEIGHT_ECO2 = map((int)sgp.eCO2, 0, MAX_GRAPH_VALUE, 1, MAX_GRAPH_HEIGHT);
+      if (LATEST_GRAPH_HEIGHT_ECO2 < 67) {
+        sprite.fillRect(299, (240 - LATEST_GRAPH_HEIGHT_ECO2), 21, LATEST_GRAPH_HEIGHT_ECO2, TFT_GREEN);
+      } else if (LATEST_GRAPH_HEIGHT_ECO2 < 99) {
+        sprite.fillRect(299, (240 - LATEST_GRAPH_HEIGHT_ECO2), 21, LATEST_GRAPH_HEIGHT_ECO2, TFT_YELLOW);
+      } else {
+        sprite.fillRect(299, (240 - LATEST_GRAPH_HEIGHT_ECO2), 21, LATEST_GRAPH_HEIGHT_ECO2, TFT_RED);
+      }
     }
 };
