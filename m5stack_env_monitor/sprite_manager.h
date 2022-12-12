@@ -31,12 +31,12 @@ class SpriteManager {
   public:
     // コンストラクタで引数として本文configStoreインスタンスからconfigStore_として取得する
     // コロンの後のconfigStoreはprivate領域のインスタンスへの参照を表す
-    SpriteManager(ConfigStore &configStore_): configStore(configStore_) {
+    SpriteManager(ConfigStore &configStore_, ClockDial &clockDial_): configStore(configStore_), clockDial(clockDial_) {
       // グラフ表示用のキューを初期化する関数を呼び出し
       initializeEco2GraphValueList();
     };
     // スプライトの作成
-    void initSprite() {
+    void initializeSprite() {
       sprite.setColorDepth(8);
       sprite.setTextFont(4);
       sprite.setTextSize(1);
@@ -80,7 +80,7 @@ class SpriteManager {
     }
 
   private:
-    //ClockDial &clockDial;
+    ClockDial &clockDial;
 
     // コンストラクタで参照先を埋める本文configStoreへの参照
     ConfigStore &configStore;
@@ -113,15 +113,23 @@ class SpriteManager {
     // 計測結果をスプライトに入力する関数
     void setMeasurement(int tvoc, int eco2, float pressure, float temperature, float humidity) {
       sprite.setTextFont(1);
-      sprite.setCursor(200, 0);
-//      sprite.printf(clockDial.getTimeString);
-      sprite.setTextFont(8);
-      sprite.setCursor(0, 10);
-      sprite.printf("eCO2: %4d ppm ", eco2);
+      sprite.setTextSize(1);
+      sprite.setCursor(200, 10);
+      sprite.printf("Now: %5d",clockDial.getTimeString);
       sprite.setTextFont(4);
-      sprite.setCursor(0, 90);
-      sprite.printf("Pres.: %4.1f hPa", pressure);
+      sprite.setTextSize(1);
+      sprite.setCursor(0, 60);
+      sprite.printf("eCO2:");
+      sprite.setTextFont(7);
+      sprite.setCursor(80, 40);
+      sprite.printf("%4d", eco2);
+      sprite.setTextFont(4);
+      sprite.setCursor(240, 60);
+      sprite.printf("ppm");
+      sprite.setTextFont(4);
       sprite.setCursor(0, 120);
+      sprite.printf("Pres.: %4.1f hPa", pressure);
+      sprite.setCursor(0, 150);
       sprite.printf("Temp: %2.1f 'C %2.1f %c ", temperature, humidity, '%');
     }
 

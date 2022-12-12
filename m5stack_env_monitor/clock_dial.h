@@ -27,12 +27,14 @@ class ClockDial {
     String getDateString(struct tm currentDateTime) {
       int month = currentDateTime.tm_mon + 1;
       String dateString = String(month) + "/" + String(currentDateTime.tm_mday);
+      Serial.println(dateString);
       return dateString;
     }
 
     // tm オブジェクトから時刻文字列 (例: "00:00") を返す関数
-    String getTimeString(struct tm currentDateTime) {
+    static String getTimeString(struct tm currentDateTime) {
       String timeString = String(currentDateTime.tm_hour) + ":" + String(currentDateTime.tm_min);
+      Serial.println(timeString);
       return timeString;
     }
 

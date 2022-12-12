@@ -22,9 +22,9 @@ uint16_t tvoc_base = 40910; //TVOC baseline仮設定値
 
 #include "config_store.h"
 #include "notifier.h"
+#include "clock_dial.h"
 #include "logger.h"
 #include "sprite_manager.h"
-#include "clock_dial.h"
 
 // SGP30で計測したeCO2濃度の閾値の構造体
 struct Eco2Threshold {
@@ -58,11 +58,13 @@ Notifier notifier;
 // Config_store クラスのインスタンス化
 ConfigStore configStore;
 
+ClockDial clockDial;
+
 // Logger クラスのインスタンス化
 Logger logger(clockDial);
 
 // SpriteManager クラスのインスタンス化
-SpriteManager spriteManager(configStore);
+SpriteManager spriteManager(configStore, clockDial);
 
 void initM5stack() {
   // LCD, SD, UART, I2C をそれぞれ初期化するかを指定して初期化する
@@ -119,6 +121,8 @@ void setup() {
   while (!bmp280.begin(0x76)) {
     M5.Lcd.println("Could not find a valid BMP280 sensor, check wiring!");
   }
+
+  clockDial.correctTime();
 
   // SDカードに保存されている初期値の呼び出し
   configStore.load();
