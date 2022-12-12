@@ -24,6 +24,7 @@ uint16_t tvoc_base = 40910; //TVOC baseline仮設定値
 #include "notifier.h"
 #include "logger.h"
 #include "sprite_manager.h"
+#include "clock_dial.h"
 
 // SGP30で計測したeCO2濃度の閾値の構造体
 struct Eco2Threshold {
@@ -58,7 +59,7 @@ Notifier notifier;
 ConfigStore configStore;
 
 // Logger クラスのインスタンス化
-Logger logger;
+Logger logger(clockDial);
 
 // SpriteManager クラスのインスタンス化
 SpriteManager spriteManager(configStore);
@@ -118,12 +119,11 @@ void setup() {
   while (!bmp280.begin(0x76)) {
     M5.Lcd.println("Could not find a valid BMP280 sensor, check wiring!");
   }
-  logger.correctTime();
 
   // SDカードに保存されている初期値の呼び出し
   configStore.load();
 
-  spriteManager.initSprite();
+  spriteManager.initializeSprite();
 }
 
 // measureSensorValues () に必要な関数

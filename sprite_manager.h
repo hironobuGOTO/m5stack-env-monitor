@@ -80,6 +80,8 @@ class SpriteManager {
     }
 
   private:
+    //ClockDial &clockDial;
+
     // コンストラクタで参照先を埋める本文configStoreへの参照
     ConfigStore &configStore;
 
@@ -110,14 +112,17 @@ class SpriteManager {
 
     // 計測結果をスプライトに入力する関数
     void setMeasurement(int tvoc, int eco2, float pressure, float temperature, float humidity) {
+      sprite.setTextFont(1);
+      sprite.setCursor(200, 0);
+//      sprite.printf(clockDial.getTimeString);
+      sprite.setTextFont(8);
       sprite.setCursor(0, 10);
-      sprite.printf("Pres.: %4.1f hPa", pressure);
-      sprite.setCursor(0, 40);
-      sprite.printf("Temp: %2.1f 'C %2.1f %c ", temperature, humidity, '%');
-      sprite.setCursor(0, 70);
-      sprite.printf("TVOC: %4d ppb ", tvoc);
-      sprite.setCursor(0, 100);
       sprite.printf("eCO2: %4d ppm ", eco2);
+      sprite.setTextFont(4);
+      sprite.setCursor(0, 90);
+      sprite.printf("Pres.: %4.1f hPa", pressure);
+      sprite.setCursor(0, 120);
+      sprite.printf("Temp: %2.1f 'C %2.1f %c ", temperature, humidity, '%');
     }
 
     // eCO2の値が前回計測したときから下回っていないことを確かめる関数
