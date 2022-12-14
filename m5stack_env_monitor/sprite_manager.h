@@ -80,6 +80,11 @@ class SpriteManager {
     }
 
   private:
+
+    // 時間をtm型で取得する変数
+    struct tm currentDateTime;
+
+    // コンストラクタで参照先を埋める本文clockDialへの参照
     ClockDial &clockDial;
 
     // コンストラクタで参照先を埋める本文configStoreへの参照
@@ -110,26 +115,34 @@ class SpriteManager {
              a.b == b.b;
     }
 
+    // ローカル時間を取得する関数
+    String setClockTime() {
+      boolean getTime = getLocalTime(&currentDateTime);
+      String measureTime = clockDial.getTimeString(currentDateTime);
+      return measureTime;
+    }
+
     // 計測結果をスプライトに入力する関数
     void setMeasurement(int tvoc, int eco2, float pressure, float temperature, float humidity) {
+      const String TIME_STRING = setClockTime();
       sprite.setTextFont(1);
-      sprite.setTextSize(1);
-      sprite.setCursor(200, 10);
-      sprite.printf("Now: %5d",clockDial.getTimeString);
+      sprite.setTextSize(2);
+      sprite.setCursor(170, 10);
+      sprite.printf("Now: %s", TIME_STRING);
       sprite.setTextFont(4);
       sprite.setTextSize(1);
-      sprite.setCursor(0, 60);
+      sprite.setCursor(10, 60);
       sprite.printf("eCO2:");
       sprite.setTextFont(7);
-      sprite.setCursor(80, 40);
+      sprite.setCursor(120, 35);
       sprite.printf("%4d", eco2);
       sprite.setTextFont(4);
       sprite.setCursor(240, 60);
       sprite.printf("ppm");
       sprite.setTextFont(4);
-      sprite.setCursor(0, 120);
+      sprite.setCursor(10, 90);
       sprite.printf("Pres.: %4.1f hPa", pressure);
-      sprite.setCursor(0, 150);
+      sprite.setCursor(10, 120);
       sprite.printf("Temp: %2.1f 'C %2.1f %c ", temperature, humidity, '%');
     }
 

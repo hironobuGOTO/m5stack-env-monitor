@@ -14,7 +14,7 @@ class ClockDial {
       WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
       // Wi-Fi接続が完了するのを待つ
-      M5.Lcd.printf("Connecting");
+      M5.Lcd.printf("\n  Connecting");
       while (WiFi.status() != WL_CONNECTED) {
         M5.Lcd.printf(".");
         delay(1000);
