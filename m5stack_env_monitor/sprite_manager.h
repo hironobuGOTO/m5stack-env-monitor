@@ -125,25 +125,37 @@ class SpriteManager {
     // 計測結果をスプライトに入力する関数
     void setMeasurement(int tvoc, int eco2, float pressure, float temperature, float humidity) {
       const String TIME_STRING = setClockTime();
+      int year, month, day;
+      clockDial.getDateString(currentDateTime, &year, &month, &day);
       sprite.setTextFont(1);
       sprite.setTextSize(2);
-      sprite.setCursor(170, 10);
-      sprite.printf("Now: %s", TIME_STRING);
-      sprite.setTextFont(4);
+      sprite.setCursor(15, 10);
+      sprite.printf("%s", clockDial.getWdayString(currentDateTime));
+      sprite.setCursor(90, 10);
+      sprite.printf("%4d/%2d/%2d", year, month, day);
+      sprite.setCursor(250, 10);
+      sprite.printf("%s", TIME_STRING);
       sprite.setTextSize(1);
-      sprite.setCursor(10, 60);
-      sprite.printf("eCO2:");
       sprite.setTextFont(7);
-      sprite.setCursor(120, 35);
+      sprite.setCursor(100, 40);
       sprite.printf("%4d", eco2);
       sprite.setTextFont(4);
-      sprite.setCursor(240, 60);
+      sprite.setCursor(255, 65);
       sprite.printf("ppm");
       sprite.setTextFont(4);
-      sprite.setCursor(10, 90);
-      sprite.printf("Pres.: %4.1f hPa", pressure);
-      sprite.setCursor(10, 120);
-      sprite.printf("Temp: %2.1f 'C %2.1f %c ", temperature, humidity, '%');
+      sprite.setCursor(10, 105);
+      sprite.printf("%2.1f 'C", temperature);
+      sprite.setCursor(98, 105);
+      sprite.printf("%2.1f %c", humidity, '%');
+      sprite.setCursor(180, 105);
+      sprite.printf("%4.1f hPa", pressure);
+      sprite.drawFastHLine(0, 31, 320, TFT_WHITE);
+      sprite.drawFastHLine(0, 98, 320, TFT_WHITE);
+      sprite.drawFastHLine(0, 132, 320, TFT_WHITE);
+      sprite.drawFastVLine(70, 0, 31, TFT_WHITE);
+      sprite.drawFastVLine(230, 0, 31, TFT_WHITE);
+      sprite.drawFastVLine(94, 98, 34, TFT_WHITE);
+      sprite.drawFastVLine(178, 98, 34, TFT_WHITE);
     }
 
     // eCO2の値が前回計測したときから下回っていないことを確かめる関数

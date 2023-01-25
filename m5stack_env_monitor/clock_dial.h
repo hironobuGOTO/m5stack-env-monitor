@@ -33,9 +33,35 @@ class ClockDial {
 
     // tm オブジェクトから時刻文字列 (例: "00:00") を返す関数
     static String getTimeString(struct tm currentDateTime) {
-      String timeString = String(currentDateTime.tm_hour) + ":" + String(currentDateTime.tm_min);
+      String hour;
+      String minutes;
+
+      if (currentDateTime.tm_hour < 10) {
+        hour = "0" + String(currentDateTime.tm_hour);
+      } else {
+        hour = String(currentDateTime.tm_hour);
+      }
+      if (currentDateTime.tm_min < 10) {
+        minutes = "0" + String(currentDateTime.tm_min);
+      } else {
+        minutes = String(currentDateTime.tm_min);
+      }
+      String timeString = hour + ":" + minutes;
       Serial.println(timeString);
       return timeString;
+    }
+
+    // tm オブジェクトから曜日を返す関数
+    const String getWdayString(struct tm currentDateTime) {
+      const String WDAY_ARRAY[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+      return WDAY_ARRAY[currentDateTime.tm_wday];
+    }
+
+    // tm オブジェクトから年月日を返す関数
+    void getDateString(struct tm currentDateTime, int* year, int* month, int* day) {
+      *year = currentDateTime.tm_year + 1900;
+      *month = currentDateTime.tm_mon + 1;
+      *day = currentDateTime.tm_mday;
     }
 
   private:

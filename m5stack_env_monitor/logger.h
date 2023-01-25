@@ -16,7 +16,7 @@ class Logger {
     }
 
     // 計測した値をSDカードに保存する関数
-    void saveSensorValue(struct SensorValue latestSensorValue){
+    void saveSensorValue(struct SensorValue latestSensorValue) {
       // ローカル時間を取得する
       boolean getTime = getLocalTime(&currentDateTime);
       String measureDay = clockDial.getDateString(currentDateTime);

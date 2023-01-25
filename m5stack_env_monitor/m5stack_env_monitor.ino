@@ -116,7 +116,7 @@ void setup() {
   initM5stack();
 
   initSgp30();
-  
+
   // BMP280 が初期化できなかったとき、エラーを返す
   while (!bmp280.begin(0x76)) {
     M5.Lcd.println("Could not find a valid BMP280 sensor, check wiring!");
