@@ -129,11 +129,11 @@ class SpriteManager {
       clockDial.getDateString(currentDateTime, &year, &month, &day);
       sprite.setTextFont(1);
       sprite.setTextSize(2);
-      sprite.setCursor(15, 10);
+      sprite.setCursor(17, 7);
       sprite.printf("%s", clockDial.getWdayString(currentDateTime));
-      sprite.setCursor(90, 10);
+      sprite.setCursor(93, 7);
       sprite.printf("%4d/%2d/%2d", year, month, day);
-      sprite.setCursor(250, 10);
+      sprite.setCursor(250, 7);
       sprite.printf("%s", TIME_STRING);
       sprite.setTextSize(1);
       sprite.setTextFont(7);
@@ -145,17 +145,17 @@ class SpriteManager {
       sprite.setTextFont(4);
       sprite.setCursor(10, 105);
       sprite.printf("%2.1f 'C", temperature);
-      sprite.setCursor(98, 105);
+      sprite.setCursor(102, 105);
       sprite.printf("%2.1f %c", humidity, '%');
-      sprite.setCursor(180, 105);
+      sprite.setCursor(185, 105);
       sprite.printf("%4.1f hPa", pressure);
-      sprite.drawFastHLine(0, 31, 320, TFT_WHITE);
+      sprite.drawFastHLine(0, 29, 320, TFT_WHITE);
       sprite.drawFastHLine(0, 98, 320, TFT_WHITE);
       sprite.drawFastHLine(0, 132, 320, TFT_WHITE);
-      sprite.drawFastVLine(70, 0, 31, TFT_WHITE);
-      sprite.drawFastVLine(230, 0, 31, TFT_WHITE);
+      sprite.drawFastVLine(70, 0, 29, TFT_WHITE);
+      sprite.drawFastVLine(230, 0, 29, TFT_WHITE);
       sprite.drawFastVLine(94, 98, 34, TFT_WHITE);
-      sprite.drawFastVLine(178, 98, 34, TFT_WHITE);
+      sprite.drawFastVLine(182, 98, 34, TFT_WHITE);
     }
 
     // eCO2の値が前回計測したときから下回っていないことを確かめる関数
